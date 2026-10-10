@@ -1,5 +1,5 @@
 // Space Rocks: steer a ship, shoot the rocks, and do not get hit. A rock breaks in two when it is shot.
-// Use: left and right turn, up fires the engine, space shoots. Or hold the mouse or a finger to fly towards it; every tap shoots.
+// Use: left and right turn, up fires the engine, space shoots. Or tap to shoot, and hold to fly towards your finger.
 // Try changing: 3, the rocks in a wave; 500, the speed of a bullet; 7, the sides of a rock.
 //
 // Run it:   pictures run space_rocks.js
@@ -10,6 +10,7 @@ let bullets = []
 let score = 0
 let lives = 3
 let safe = 0                    // seconds in which nothing can hurt the ship
+let held = 0                    // seconds the mouse or a finger has been down
 
 // A sprite's picture is drawn round 0, 0, facing right.
 function drawShip(size) {
@@ -52,9 +53,14 @@ function shoot() {
   bullets.push(bullet)
 }
 
-function onMouseDown() {
-  if (lives === 0) newGame()
-  else shoot()
+function onMouseDown(x, y) {
+  held = 0
+  if (lives === 0) {
+    newGame()
+  } else {
+    ship.angle = ship.angleTo(x, y)
+    shoot()
+  }
 }
 
 function steer(dt) {
@@ -63,9 +69,11 @@ function steer(dt) {
   if (keys.has("ArrowRight")) ship.spin = degrees(230)
   if (keys.has("ArrowUp")) ship.push(300 * dt)
   if (pressed.has(" ")) shoot()
+  // A tap is over before the engine starts. Keep holding and the ship flies to your finger.
   if (mouse.down) {
+    held += dt
     ship.angle = ship.angleTo(mouse)
-    ship.push(300 * dt)
+    if (held > 0.18) ship.push(300 * dt)
   }
   ship.limit(350)
 }

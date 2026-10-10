@@ -3,7 +3,8 @@
  * Small scenes run in real browsers, each leaving what it found in `result`
  * for the test to compare. For the parts of the library that have no picture
  * to look at: what a sprite's picture function is given, saved values. Then
- * every example is run for a moment, and Space Rocks is played.
+ * every example is run for a moment, and Space Rocks is played: with the keys,
+ * and with the mouse and a finger (a tap shoots, a hold flies; play-space-rocks.mjs).
  *
  *   PLAYWRIGHT=/path/to/node_modules/playwright node scripts/test-scenes.mjs
  *
@@ -13,6 +14,8 @@ import { createServer } from 'node:http'
 import { readFile, readdir } from 'node:fs/promises'
 import { dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+
+import { HOOK, playSpaceRocks } from './play-space-rocks.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const from = process.env.PLAYWRIGHT || 'playwright'
@@ -63,6 +66,8 @@ window.result = got
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml' }
 const server = createServer(async (req, res) => {
   const path = new URL(req.url, 'http://x').pathname
+  // A scene that fills the page, for the games played by pointer.
+  if (path === '/full.html') return res.writeHead(200, { 'content-type': 'text/html' }).end('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:0;overflow:hidden"><div id="s" style="position:absolute;inset:0"></div>')
   if (path === '/test.html') return res.writeHead(200, { 'content-type': 'text/html' }).end('<!doctype html><body><div id="s" style="width:300px;height:200px"></div>')
   let body
   try { body = await readFile(join(ROOT, decodeURIComponent(path))) } catch { return res.writeHead(404).end() }
@@ -193,6 +198,23 @@ for (const name of ['chromium', 'webkit']) {
     return { error, ship, rocks: all - ship, status: box.dataset.picturesStatus }
   })
   say(!played.error && played.status === 'running' && played.ship > 20 && played.rocks > 100, name, 'Space Rocks is played: ship and rocks are drawn, keys taken', played)
+  // Space Rocks is played by pointer: the mouse in a window, then a finger on a phone-size touch screen.
+  const rocks = (await readFile(join(ROOT, 'examples', 'space_rocks.js'), 'utf8')) + HOOK
+  for (const touch of [false, true]) {
+    const context = await browser.newContext(touch ? { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: name === 'chromium', deviceScaleFactor: 3 } : { viewport: { width: 1000, height: 700 } })
+    const tab = await context.newPage()
+    await tab.goto(`${at}/full.html`)
+    const error = await tab.evaluate(async (source) => {
+      const { runScene } = await import('/pictures.js')
+      let error = null
+      runScene(document.getElementById('s'), { source, name: 'space_rocks.js', onError: (message) => { error = message } })
+      await new Promise((done) => setTimeout(done, 500))
+      return error
+    }, rocks)
+    say(!error, name, `Space Rocks runs for ${touch ? 'a finger' : 'the mouse'}`, error)
+    if (!error) await playSpaceRocks(tab, name, { touch, say: (ok, what, got) => say(ok, name, what, got) })
+    await context.close()
+  }
   await browser.close()
 }
 server.close()
