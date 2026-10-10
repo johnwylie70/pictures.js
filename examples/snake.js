@@ -1,6 +1,6 @@
 // Snake: eat the apples and grow, without running into a wall or yourself. It is played on a grid of squares, and your best score is kept.
 // Use: the arrow keys turn the snake. Or tap the side of its head you want it to turn to.
-// Try changing: SQUARE, the size of a square; 0.12, the seconds between steps (smaller is faster); the colours in draw().
+// Try changing: SQUARE, the size of a square; 0.15, the seconds between steps (smaller is faster); the colours in draw().
 //
 // Run it:   pictures run snake.js
 
@@ -16,6 +16,7 @@ let timer = 0
 let score = 0
 let best = load("best", 0)      // the best score saved last time, or 0 the first time
 let alive = true
+let waiting = true              // nothing moves until the first key or tap
 
 function newGame() {
   columns = Math.floor(width / SQUARE)
@@ -26,6 +27,7 @@ function newGame() {
   turn = going
   score = 0
   alive = true
+  waiting = true
   moveApple()
 }
 
@@ -52,11 +54,13 @@ function onKeyDown(key) {
   if (key === "ArrowRight") turnTo(1, 0)
   if (key === "ArrowUp") turnTo(0, -1)
   if (key === "ArrowDown") turnTo(0, 1)
+  if (key.startsWith("Arrow")) waiting = false
   if (key === " " && !alive) newGame()
 }
 
 function onMouseDown(x, y) {
   if (!alive) return newGame()
+  waiting = false
   // How far the tap is from the middle of the head, across and down.
   const across = x - (snake[0].x + 0.5) * SQUARE
   const down = y - (snake[0].y + 0.5) * SQUARE
@@ -86,9 +90,9 @@ function step() {
 }
 
 function update(dt) {
-  if (!alive) return
+  if (!alive || waiting) return
   timer += dt
-  if (timer >= 0.12) {          // a step every 0.12 seconds: smaller is faster
+  if (timer >= 0.15) {          // a step every 0.15 seconds: smaller is faster
     timer = 0
     step()
   }
@@ -106,6 +110,7 @@ function draw() {
   square(snake[0].x, snake[0].y, "palegreen")
   text("Score " + score, 12, 30, "white", 20, "left")
   text("Best " + best, width - 12, 30, "gold", 20, "right")
+  if (waiting) text("Press an arrow key or tap to start", width / 2, height / 2 + 60, "white", 18, "centre")
   if (!alive) {
     text("Game over", width / 2, height / 2, "white", 32, "centre")
     text("Tap or press space to play again", width / 2, height / 2 + 40, "white", 18, "centre")
