@@ -2,7 +2,7 @@
 
 Full reference: [www.circuitry.dev/docs/pictures/debugging](https://www.circuitry.dev/docs/pictures/debugging) (in Circuitry Studio's help)
 
-When a drawing program does something you did not expect, read its errors and printed output, and check how fast it runs. This page covers each of them.
+When a drawing program does something you did not expect, read its errors and printed output, stop it at a line, and check how fast it runs. This page covers each of them.
 
 ## Errors: read them, then fix the line
 
@@ -48,6 +48,23 @@ function draw() {
 Print now and then, as above, rather than every frame: sixty lines a second is hard to read.
 
 To see a value without opening the console, draw it: `ctx.fillText(String(score), 12, 24)` at the end of `draw()`.
+
+## Stopping at a line
+
+pictures.js has no debugger of its own. In a browser, use the browser's developer tools. Write `debugger` on a line of its own where you want to stop:
+
+```js
+function update(dt) {
+  score += 1
+  if (score > 100) {
+    debugger
+  }
+}
+```
+
+With the developer tools open, the scene stops on that line, and the tools show your variables and let you step a line at a time. With the tools closed, the line does nothing. Take it out when you have finished.
+
+In [Circuitry Studio](https://www.circuitry.dev) the editor has breakpoints of its own: tap left of a line number, and the scene stops there with its variables listed. See [Finding mistakes in Circuitry Studio](https://www.circuitry.dev/docs/pictures/debugging#breakpoints-stop-at-a-line).
 
 ## The frame rate
 
