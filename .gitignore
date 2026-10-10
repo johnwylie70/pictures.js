@@ -1,0 +1,7 @@
+node_modules/
+# built by scripts/build-gallery.mjs
+site/
+*.tgz
+.DS_Store
+.playwright-mcp/
+.circuitry/
