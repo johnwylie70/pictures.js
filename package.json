@@ -1,6 +1,5 @@
 {
   "name": "pictures.js",
-  "private": true,
   "version": "0.1.0",
   "description": "Write a short JavaScript file and it draws: 2D canvas and three.js scenes with setup(), update(dt) and draw(), nothing to import. The JavaScript sibling of Pyctures.",
   "type": "module",
