@@ -77,4 +77,4 @@ To start again from nothing, save the starting value: `save("best", 0)`.
 
 Keep what you save small: scores, names and settings, not pictures. A browser gives a site a few million characters in all.
 
-These are not the functions for files. `loadText` and `loadJSON` read a file that sits beside the scene ([2D functions](2d-functions.md)).
+These are not the functions for files. `saveText` and `saveJSON` write a file, `loadText` and `loadJSON` read one, and `openDatabase` keeps rows in a database: see [Files and databases](files-and-databases.md).

@@ -49,7 +49,7 @@ const CASES = [
 ]
 const HELPER = 'export function boom() {\n  // a comment\n  return nothing.here\n}\nexport function twice(fn) {\n  fn()\n  fn()\n}\n'
 
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript' }
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm' }
 const server = createServer(async (req, res) => {
   const path = new URL(req.url, 'http://x').pathname
   if (path === '/test.html') return res.writeHead(200, { 'content-type': 'text/html' }).end('<!doctype html><body><div id="s" style="width:300px;height:200px"></div>')

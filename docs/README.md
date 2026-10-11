@@ -16,6 +16,7 @@ pictures.js is designed for projects made in [Circuitry Studio](https://www.circ
 - [3D scenes](3d.md)
 - [Colours](colours.md)
 - [Saved values](saved-values.md): keep a best score for next time
+- [Files and databases](files-and-databases.md): write a file and read it back, and keep rows in a SQLite database
 - [Bringing a Pyctures scene across](from-python.md)
 - [Use it on your website](website.md)
 
@@ -32,6 +33,7 @@ pictures.js is designed for projects made in [Circuitry Studio](https://www.circ
 
 ## Look things up
 
+- [Function index](function-index.md): every name a scene can use, by area, one line each
 - [2D functions](2d-functions.md)
 - [3D functions](3d-functions.md)
 - [Finding mistakes](finding-mistakes.md)

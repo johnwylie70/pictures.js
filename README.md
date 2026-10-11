@@ -2,6 +2,10 @@
 
 [![MIT licence](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
 
+[![pictures.js scenes: a solar system, a 2D game, a spiral of 400 cubes, bouncing balls and a wave of cubes, each a short JavaScript file](docs/images/gallery.gif)](https://www.circuitry.dev/pictures)
+
+**[Change the code and run it on the pictures.js page →](https://www.circuitry.dev/pictures)** Nothing to install.
+
 pictures.js is for making 2D and 3D graphics and games in plain JavaScript, and for enjoying it. It is for any age and any level, a first program or a thousandth: you type a few lines and see something move. It is designed to bring the joy back into programming. Write a short `.js` file and it draws in your web browser: shapes, text, moving sprites, games, animations, live charts and lit 3D scenes. There is no HTML to write: plain drawing functions, the web's 2D canvas and three.js are ready in every file, with nothing to import, no page to make, no canvas to find and no loop to set up. It is designed for projects made in [Circuitry Studio](https://www.circuitry.dev), and runs anywhere a browser does.
 
 Prefer Python? [Pyctures](https://github.com/johnwylie70/pyctures) is the sibling library: the same shape of program (`setup()`, `update(dt)`, `draw()`, `keys`, `mouse`, `Sprite`, three.js) in a `.py` file. A scene comes across from one to the other with little more than its syntax changed.
@@ -39,7 +43,7 @@ function draw() {
 }
 ```
 
-`update(dt)` is called before every `draw()`. `dt` is the time since the last frame, so `200 * dt` moves the circle 200 points a second on any screen. Change the 200 and run it again.
+`update(dt)` is called before every `draw()`. `dt` is the time since the last frame, in seconds: about a sixtieth of a second on most screens, and less on a faster one. It is there because screens do not all draw at the same rate, and a busy device can drop frames. A program that moved the circle a fixed amount every frame would run faster on one screen than on another. Multiplying by `dt` evens that out: `200 * dt` is 200 points a second everywhere, however many frames that second has. Change the 200 and run it again.
 
 **3. Make it answer you.**
 
@@ -169,6 +173,8 @@ Each canvas fills its box (16:9 if the box has no height) and waits while it is 
 | Out of a list | `for rock in rocks[:]:` and `remove(rocks, rock)` | `for (const rock of [...rocks])` and `remove(rocks, rock)` |
 | Saved values | `save("best", 120)`, `best = load("best", 0)` | the same |
 | Files beside the scene | `open("words.txt")` | `await loadText("words.txt")`, `await loadJSON("level.json")` |
+| Writing a file | `save_text("notes.txt", text)`, `text = load_text("notes.txt", "")` | `await saveText("notes.txt", text)`, `text = await loadText("notes.txt")` |
+| A database | `db = open_database("scores")`, `db.query(sql, 10)`, `db.run(sql, "Ann", 12)`, `db.close()` | `db = await openDatabase("scores")`, then the same calls with `await` |
 | 3D | `THREE.Mesh(g, m)`, `addons.OrbitControls(camera, canvas)` | `new THREE.Mesh(g, m)`, `new addons.OrbitControls(camera, canvas)` |
 | Reading a value | `w = await ctx.measure_text("Hi").width` | `const w = ctx.measureText("Hi").width` |
 
@@ -240,6 +246,26 @@ function draw() {
 
 `THREE` is three.js, ready to use, and `addons.OrbitControls` lets you drag to turn the scene. This is [`examples/textured_cube.js`](examples/textured_cube.js).
 
+## Files and databases
+
+A scene can write a file and read it back the next time, and keep rows in a SQLite database:
+
+```js
+await saveText("notes.txt", "remember the milk")
+const notes = await loadText("notes.txt")
+
+const db = await openDatabase("scores")
+await db.run("create table if not exists best (name text, points integer)")
+await db.run("insert into best values (?, ?)", "Ann", 12)
+const rows = await db.query("select name, points from best where points > ?", 10)   // [{ name: "Ann", points: 12 }]
+```
+
+On a web page the browser keeps them, for that scene alone. An app that runs scenes can keep them as real files on the device. SQLite is loaded the first time a scene opens a database, and not at all by a scene that opens none. See [Files and databases](docs/files-and-databases.md), and [`examples/top_scores.js`](examples/top_scores.js).
+
+## Changing a picture
+
+pictures.js loads and draws pictures. The methods that change one (`await img.removeBackground()`, `await img.resize({ width: 800 })`, `await img.trace()` and more) are not part of this library: the app that runs a scene supplies them and does the work. [Circuitry Studio](https://www.circuitry.dev/docs/pictures/images) does, so a scene there can cut out a subject, resize, crop, trace a picture into shapes and read what is in it. On a page of your own, and in a page made with `pictures build`, a picture still loads and draws, and calling one of these stops the scene with a message that says they work inside Circuitry. An app of your own can supply them with the `pictures` option: see [Use it on your website](docs/website.md#picture-methods).
+
 ## Examples
 
 In [`examples/`](examples), each with a comment at the top saying what it shows. `node scripts/build-gallery.mjs` builds a gallery of them all in `site/`, each running with its code beside it.
@@ -252,6 +278,7 @@ In [`examples/`](examples), each with a comment at the top saying what it shows.
 | `brick_breaker.js` | Brick Breaker: a bat, a ball and a wall of bricks |
 | `snake.js` | Snake: a game on a grid, with a best score that is kept |
 | `high_score.js` | A best score that is still there next time: `save` and `load` |
+| `top_scores.js` | Every game kept in a SQLite database, and the five best shown: `openDatabase` |
 | `cube_dodge.js` | A 3D game: dodge the oncoming blocks |
 | `lit_scene.js` | Shapes on a floor with a spotlight and shadows |
 | `bouncing_balls.js` | A 2D animation with trails; click to add balls |
@@ -275,7 +302,7 @@ Every one of these is also a [Pyctures example](https://github.com/johnwylie70/p
 
 ## Docs
 
-Start with [Getting started](docs/getting-started.md), then [how a program is shaped](docs/program-shape.md), [drawing in 2D](docs/drawing-2d.md), [3D scenes](docs/3d.md), [colours](docs/colours.md), [saved values](docs/saved-values.md), and [tips](docs/tips.md). The [2D functions](docs/2d-functions.md) and [3D functions](docs/3d-functions.md) pages list everything, one line each. Seven tutorials are in [docs/tutorials](docs/tutorials).
+Start with [Getting started](docs/getting-started.md), then [how a program is shaped](docs/program-shape.md), [drawing in 2D](docs/drawing-2d.md), [3D scenes](docs/3d.md), [colours](docs/colours.md), [saved values](docs/saved-values.md), [files and databases](docs/files-and-databases.md), and [tips](docs/tips.md). The [2D functions](docs/2d-functions.md) and [3D functions](docs/3d-functions.md) pages list everything, one line each. The [function index](docs/function-index.md) names every function by area, with a link to where it is explained. Seven tutorials are in [docs/tutorials](docs/tutorials).
 
 ## pictures.js in Circuitry Studio
 
@@ -285,6 +312,6 @@ Its page, where you can edit a scene and run it: [circuitry.dev/pictures](https:
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE). pictures.js includes three.js (MIT); see [three/LICENSE](three/LICENSE).
+MIT. See [LICENSE](LICENSE). pictures.js includes three.js (MIT); see [three/LICENSE](three/LICENSE). It includes sql.js, SQLite built for the browser (MIT); see [sqlite/LICENSE](sqlite/LICENSE).
 
 Author: John Wylie

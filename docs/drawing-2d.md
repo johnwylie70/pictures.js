@@ -353,6 +353,10 @@ function draw() {
 }
 ```
 
+### Changing a picture
+
+An image from `loadImage` can have methods that change it, such as `await img.removeBackground()` and `await img.resize({ width: 800 })`, each giving a new picture. They are not part of pictures.js itself: the app that runs the scene supplies them and does the work. [Circuitry Studio](https://www.circuitry.dev/docs/pictures/images) does. On a page of your own a picture has none of them, and calling one stops the scene with a message that says so. [Use it on your website](website.md#picture-methods) has how an app supplies them.
+
 ## Sprites
 
 A `Sprite` is a picture that moves. The picture can be an emoji or any short text, an image from `loadImage`, or a function that draws it. It draws itself centred on its `x, y`.

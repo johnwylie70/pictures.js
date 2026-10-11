@@ -26,7 +26,9 @@ These are ready in every file, with no import:
 | `random`, `pick` | A number, or one thing from a list, by chance: `random(1, 6)`, `pick(["red", "gold"])`. |
 | `Sprite`, `loadImage` | Moving pictures that can tell when they touch, and loading an image. See [Sprites](drawing-2d.md#sprites). |
 | `remove` | Takes a thing out of a list: `remove(rocks, rock)`. |
-| `loadText`, `loadJSON` | Used with `await` to read a file beside the scene. |
+| `loadText`, `loadJSON` | Used with `await` to read a file beside the scene, or one the scene wrote. |
+| `saveText`, `saveJSON` | Used with `await` to write a file: `await saveText("notes.txt", words)`. See [Files and databases](files-and-databases.md). |
+| `openDatabase` | Used with `await` to open a SQLite database: `const db = await openDatabase("scores")`. See [Files and databases](files-and-databases.md). |
 | `save`, `load` | Keep a value for the next time the program runs: `save("best", 120)`, `load("best", 0)`. See [Saved values](saved-values.md). |
 
 Everything else a web page has is there too, as in any JavaScript: `document`, `Path2D`, `Math`, `console` and the rest.
@@ -419,7 +421,7 @@ Things to know:
 
 - **A read costs no frame.** In Pyctures a value read from the canvas needs `await` and waits a frame. In pictures.js it is an ordinary value, and you can read one every frame.
 - **Canvas values are ordinary numbers.** `mesh.position.x > 3` and `ctx.measureText(name).width / 2` work as they stand.
-- **Waiting is only for time and files.** `await` goes in front of `frame()`, `flush()`, `sleep(seconds)`, `loadText(path)` and `loadJSON(path)`. To `await` inside a function, make it an `async function`. `setup` and the `on` functions can be async. So can `draw` and `update`, but the next frame does not wait for them to finish.
+- **Waiting is only for time and files.** `await` goes in front of `frame()`, `flush()`, `sleep(seconds)`, `loadText(path)` and `loadJSON(path)`, and in front of writing a file and using a database. To `await` inside a function, make it an `async function`. `setup` and the `on` functions can be async. So can `draw` and `update`, but the next frame does not wait for them to finish.
 
 ## Related
 

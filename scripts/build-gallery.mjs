@@ -6,6 +6,9 @@
  *   node scripts/build-gallery.mjs --shots    also take the card pictures and the
  *                                             README's pictures (needs Playwright:
  *                                             PLAYWRIGHT=/path/to/node_modules/playwright)
+ *   node scripts/build-gallery.mjs --gif      also record docs/images/gallery.gif, the
+ *                                             moving picture at the top of the README
+ *                                             (needs Playwright and ffmpeg)
  *
  * The pages are plain HTML with scenes put in by data-pictures-src, the way
  * any website would use the library.
@@ -31,6 +34,7 @@ const SCENES = [
   ['bat_and_ball.js', 'Bat and Ball', 'One player against the computer. First to 5 wins.', 'Up and down, or drag.'],
   ['snake.js', 'Snake', 'A game on a grid: eat the apples and grow. Your best score is kept.', 'Arrow keys, or tap the side to turn to.'],
   ['high_score.js', 'High Score', 'Catch the star as often as you can in 10 seconds. The best score is still there next time: save() and load().', 'Click or tap the star.'],
+  ['top_scores.js', 'Top Scores', 'Every game goes into a SQLite database, and the five best are shown: openDatabase().', 'Click or tap the star. When the time is up, click to play again.'],
   ['cube_spiral.js', 'Cube Spiral', '400 cubes in a rainbow spiral, turning.', 'Drag to look around.'],
   ['cube_dodge.js', 'Cube Dodge', 'A 3D game with shadows, fog and the keyboard.', 'Arrow keys or drag. Dodge the red blocks.'],
   ['bouncing_balls.js', 'Bouncing Balls', 'A 2D animation with trails and hsl() colours.', 'Click or tap to add a ball.'],
@@ -102,6 +106,7 @@ async function build() {
   await mkdir(join(SITE, 'pictures'), { recursive: true })
   await cp(join(ROOT, 'pictures.js'), join(SITE, 'pictures', 'pictures.js'))
   await cp(join(ROOT, 'three'), join(SITE, 'pictures', 'three'), { recursive: true })
+  await cp(join(ROOT, 'sqlite'), join(SITE, 'pictures', 'sqlite'), { recursive: true })
   if (existsSync(join(EXAMPLES, 'textures'))) await cp(join(EXAMPLES, 'textures'), join(SITE, 'textures'), { recursive: true })
   if (existsSync(join(ROOT, 'docs', 'images', 'gallery'))) await cp(join(ROOT, 'docs', 'images', 'gallery'), join(SITE, 'shots'), { recursive: true })
 
@@ -140,7 +145,7 @@ ${foot}`)
   console.log(`Built ${SITE} (${SCENES.length} scenes)`)
 }
 
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.json': 'application/json' }
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.json': 'application/json', '.wasm': 'application/wasm' }
 function serve(root) {
   const server = createServer(async (req, res) => {
     try {
@@ -179,5 +184,43 @@ async function shots() {
   await cp(join(ROOT, 'docs', 'images', 'gallery'), join(SITE, 'shots'), { recursive: true })
 }
 
+// The scenes in the README's moving picture, three seconds each: the same five,
+// in the same order, as Pyctures' (its scripts/build_gallery.py), so the two
+// libraries open on the same picture.
+const GIF_SCENES = ['solar_system.js', 'star_catcher.js', 'cube_spiral.js', 'bouncing_balls.js', 'wave_grid.js']
+
+async function gif(seconds = 3, fps = 15) {
+  const { mkdtemp } = await import('node:fs/promises')
+  const { tmpdir } = await import('node:os')
+  const { execFileSync } = await import('node:child_process')
+  const from = process.env.PLAYWRIGHT || 'playwright'
+  const { chromium } = await import(from.startsWith('/') ? pathToFileURL(join(from, 'index.mjs')).href : from)
+  const frames = await mkdtemp(join(tmpdir(), 'pictures-gif-'))
+  const server = await serve(SITE)
+  const at = `http://localhost:${server.address().port}`
+  const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+  let n = 0
+  for (const file of GIF_SCENES) {
+    const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+    await page.goto(`${at}/${file.replace(/\.js$/, '.html')}`)
+    await page.waitForSelector('[data-pictures-status="running"], [data-pictures-status="finished"]', { timeout: 15000 })
+    await page.waitForTimeout(1500)
+    for (let i = 0; i < seconds * fps; i++) {
+      await page.locator('.scene').screenshot({ path: join(frames, `f${String(n++).padStart(5, '0')}.png`) })
+      await page.waitForTimeout(1000 / fps)
+    }
+    await page.close()
+  }
+  await browser.close()
+  server.close()
+  const target = join(ROOT, 'docs', 'images', 'gallery.gif')
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', join(frames, 'f%05d.png'),
+    '-vf', 'scale=720:-2:flags=lanczos,split[a][b];[a]palettegen=max_colors=128[p];[b][p]paletteuse=dither=bayer:bayer_scale=4',
+    '-loop', '0', target])
+  await rm(frames, { recursive: true })
+  console.log(`recorded docs/images/gallery.gif`)
+}
+
 await build()
 if (process.argv.includes('--shots')) await shots()
+if (process.argv.includes('--gif')) await gif()

@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 const HOME = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json',
   '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
-  '.svg': 'image/svg+xml', '.webp': 'image/webp', '.txt': 'text/plain', '.mp3': 'audio/mpeg', '.wav': 'audio/wav' }
+  '.svg': 'image/svg+xml', '.webp': 'image/webp', '.txt': 'text/plain', '.wasm': 'application/wasm', '.mp3': 'audio/mpeg', '.wav': 'audio/wav' }
 
 /**
  * The page round a scene: the scene fills it and has the keyboard.
@@ -102,7 +102,10 @@ if (command === 'run') {
   await cp(folder, out, { recursive: true, filter: (src) => !resolve(src).startsWith(resolve(out)) && !/node_modules|\/\.git/.test(src) })
   await mkdir(join(out, 'pictures'), { recursive: true })
   await cp(join(HOME, 'pictures.js'), join(out, 'pictures', 'pictures.js'))
-  if (/\b(THREE|addons)\s*\./.test(await readFile(resolve(file), 'utf8'))) await cp(join(HOME, 'three'), join(out, 'pictures', 'three'), { recursive: true })
+  const code = await readFile(resolve(file), 'utf8')
+  if (/\b(THREE|addons)\s*\./.test(code)) await cp(join(HOME, 'three'), join(out, 'pictures', 'three'), { recursive: true })
+  // SQLite goes with a scene that opens a database.
+  if (/\bopen(Database|_database)\s*\(/.test(code)) await cp(join(HOME, 'sqlite'), join(out, 'pictures', 'sqlite'), { recursive: true })
   await writeFile(join(out, 'index.html'), page(scene, 'pictures/pictures.js', false))
   console.log(`Built ${out} (open index.html from a web server, or put the folder on any static host)`)
 } else {

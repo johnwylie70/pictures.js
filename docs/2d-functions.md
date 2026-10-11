@@ -56,7 +56,9 @@ These come ready to use, as well as `ctx`:
 | `touches` | Every finger (or pressed mouse button) that is down: each has `id`, `x`, `y`, `startX`, `startY`, `dx`, `dy`, `type` |
 | `pinch.scale`, `pinch.change`, `pinch.x`, `pinch.y` | Two fingers as a zoom: the scale since the pinch began, its change since the last frame, and its middle |
 | `loadImage(address)` | Loads a picture to draw ([Images](#images)) |
-| `await loadText(path)`, `await loadJSON(path)` | The text of a file beside the scene, or its JSON as a value |
+| `await loadText(path)`, `await loadJSON(path)` | The text of a file beside the scene, or its JSON as a value. A file the scene has written itself comes first |
+| `await saveText(path, text)`, `await saveJSON(path, value)` | Write a file, for `loadText` and `loadJSON` to read the next time ([Files and databases](files-and-databases.md)) |
+| `await openDatabase(name)` | A SQLite database: `await db.query(sql, ...values)` gives a list of rows, `await db.run(sql, ...values)` changes it, `await db.close()` finishes ([Files and databases](files-and-databases.md)) |
 | `save(name, value)`, `load(name, otherwise)` | Keep a value for the next time the program runs, and get it back: a number, text, `true` or `false`, a list or an object ([Saved values](saved-values.md)) |
 | `new Sprite(picture, x, y, size)` | A moving picture with `x`, `y`, `vx`, `vy`, `angle`, `spin`, `size`, `visible`, `update(dt)` and `draw()`. The picture is an emoji, an image, or a function that draws it, given the sprite's size ([Sprites](drawing-2d.md#sprites)) |
 | `Sprite.box(x, y, width, height, colour)`, `Sprite.circle(x, y, size, colour)` | A plain coloured box or circle, hit-tested as the shape you see |

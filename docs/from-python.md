@@ -164,7 +164,7 @@ Both JavaScript halves have a scene of their own in the `examples` folder, to ru
 - **The scene runs on the page's own thread.** In a built Pyctures page, Python runs in a background thread and a stuck scene offers a Stop button. Here a loop that never waits freezes the whole page: see [Tips and limits](tips.md#canvas-frozen-a-loop-must-wait-for-the-next-frame).
 - **An endless loop at the top level hides the functions.** `draw`, `update` and the `on` functions are looked for when the top level reaches its end. A scene whose top level is a `while (true)` loop never reaches it, so read `keys` and `mouse` in the loop.
 - **There are no Python libraries.** Anything a scene did with numpy, Pillow or a module of your own has to be written in JavaScript. Plain arrays and `Math` cover most scenes, and `Float32Array` stands in for a numpy array of numbers.
-- **Files are read with `await`.** `open("words.txt")` becomes `await loadText("words.txt")`, and a JSON file comes back ready to use from `await loadJSON("level.json")`. Both take a path from the scene's file.
+- **Files are read with `await`.** `open("words.txt")` becomes `await loadText("words.txt")`, and a JSON file comes back ready to use from `await loadJSON("level.json")`. Both take a path from the scene's file. A file is written with `await saveText("notes.txt", words)` or `await saveJSON("level.json", level)`, and a SQLite database is opened with `await openDatabase("scores")` ([Files and databases](files-and-databases.md)).
 - **Printing goes to the browser's console**, not to the page or the terminal.
 
 ## Going back to Python

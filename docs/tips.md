@@ -9,7 +9,7 @@ A few things that are good to know once your programs grow: what keeps them fast
 Your code calls the canvas directly, so a value comes back at once: the width of some text, where a mesh is, what a ray hit. There is no `await` on a read and no frame lost to it, so read whenever it is useful, every frame if you like.
 
 - `ctx.measureText(text).width`, `mesh.position.x` and `hits.length` are ordinary numbers. Use them in sums and in `if`.
-- `await` is only for time and files: `frame()`, `flush()`, `sleep(seconds)`, `loadText(path)` and `loadJSON(path)`. `await vsync()` is another name for `await frame()`.
+- `await` is only for time and files: `frame()`, `flush()`, `sleep(seconds)`, `loadText(path)` and `loadJSON(path)`, `saveText` and `saveJSON`, and a database (`openDatabase`, `db.query`, `db.run`, `db.close`). `await vsync()` is another name for `await frame()`.
 - Reading pixels with `ctx.getImageData` is the one read that is slow, because it copies every pixel. Keep it for small areas or one-off effects.
 
 ## Canvas frozen? A loop must wait for the next frame
@@ -131,6 +131,7 @@ For something that should happen once for each press, such as a jump or a shot, 
 A scene is a plain script, not a module, so an `import` line at the top is an error. What a scene has is what the list in [How a program is shaped](program-shape.md#the-names-you-can-use) gives it, and everything the browser has.
 
 - Files beside the scene are read with `loadImage(path)`, `await loadText(path)` and `await loadJSON(path)`. A text or JSON file that is not there stops the scene with an error that names it. A picture that is not there is simply never drawn.
+- Files a scene writes itself, with `await saveText(path, text)` and `await saveJSON(path, value)`, are read back the same way, and `await openDatabase(name)` keeps rows in a SQLite database ([Files and databases](files-and-databases.md)).
 - Of three.js, the core and `addons.OrbitControls` are there. Its other add-ons are not loaded.
 
 ## The rest of JavaScript

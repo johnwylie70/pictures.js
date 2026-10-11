@@ -61,7 +61,7 @@ function draw() {
 }
 ```
 
-`update(dt)` is called before every `draw()`. `dt` is the time since the last frame, so `200 * dt` moves the circle 200 points a second on any screen. Change the 200 and run it again.
+`update(dt)` is called before every `draw()`. `dt` is the time since the last frame, in seconds: about a sixtieth of a second on most screens, and less on a faster one. It is there because screens do not all draw at the same rate, and a busy device can drop frames. A program that moved the circle a fixed amount every frame would run faster on one screen than on another. Multiplying by `dt` evens that out: `200 * dt` is 200 points a second everywhere, however many frames that second has. Change the 200 and run it again.
 
 ### Make it answer you
 
@@ -134,7 +134,7 @@ These four are in the examples folder as `hello.js`, `moving.js`, `follow.js` an
 | `--port 9000` | Use this port. Without it, the port is 8000. If something else is already using the port, the command stops with an error that says `EADDRINUSE`: give it another port. |
 | `--no-browser` | Do not open a browser. Open the address it prints yourself. |
 
-The server shows the scene's own folder, so a scene finds the files beside it: `loadImage("cat.png")`, `await loadText("words.txt")` and `await loadJSON("level.json")` all take a path from the scene's file.
+The server shows the scene's own folder, so a scene finds the files beside it: `loadImage("cat.png")`, `await loadText("words.txt")` and `await loadJSON("level.json")` all take a path from the scene's file. A scene can also write files of its own and keep a database ([Files and databases](files-and-databases.md)).
 
 ## `build`: share it
 

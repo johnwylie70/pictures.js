@@ -47,10 +47,11 @@ my-site/
 ├── knot.js
 └── pictures/
     ├── pictures.js   from the pictures.js folder
-    └── three/        the whole three folder, needed only for 3D scenes
+    ├── three/        the whole three folder, needed only for 3D scenes
+    └── sqlite/       the whole sqlite folder, needed only for scenes that open a database
 ```
 
-The `three` folder must sit beside `pictures.js`, because that is where a 3D scene's three.js is loaded from. A page with only 2D scenes never loads it, and can do without it.
+The `three` folder must sit beside `pictures.js`, because that is where a 3D scene's three.js is loaded from. A page with only 2D scenes never loads it, and can do without it. The `sqlite` folder is the same for a scene that calls `openDatabase`: SQLite is loaded from it the first time a database is opened, and never by a scene that opens none.
 
 ### What a scene's box does
 
@@ -97,6 +98,10 @@ scene.stop()
 | `name` | The file name used when working out an error's line. Without it, the name from `src`, or `scene.js`. |
 | `keyboard` | `true` gives the scene the keyboard from the start. |
 | `files` | A table from a path, as the scene writes it, to an address to load in its place: `{ "ship.png": "https://…/ship.png" }`. For a host with no folder to serve; `loadImage`, `loadText`, `loadJSON` and three.js's loaders all use it. |
+| `storage` | Where the files the scene writes are kept, for an app that has real files to give it. See [Storage](#storage) below. Without it the browser keeps them. |
+| `pictures` | The methods a loaded picture has (`await img.removeBackground()`), for an app that can change pictures. See [Picture methods](#picture-methods) below. Without it a picture has none. |
+| `sqlite` | The address of the folder SQLite is loaded from (it holds `sql-wasm.js` and `sql-wasm.wasm`), in place of the `sqlite` folder beside `pictures.js`. |
+| `savedAs` | The name the scene's saved values and files are kept under in the browser. Without it, the scene's address. |
 | `stopStuckLoops` | `true` stops a loop that holds the page for four seconds: the scene shows an error with the loop's line. A loop written without braces is not checked. Off unless asked for. |
 | `onStatus(status)` | Called with `"starting"`, `"running"`, `"finished"` or `"error"` when the status changes. |
 | `onError(message, line)` | Called when the scene stops with an error. `line` is 0 when the line is not known. |
@@ -104,6 +109,70 @@ scene.stop()
 It hands back an object with `stop()`, `restart()` and `canvas`. `stop()` ends the scene and leaves its last picture showing. `restart()` runs it again from the top, and `restart(newSource)` runs new code in its place. `canvas` is the scene's canvas element.
 
 Loading the module starts every `[data-pictures-src]` on the page by itself, whether or not you also call `runScene`.
+
+### Storage
+
+A scene writes files with `saveText` and `saveJSON`, and keeps databases with `openDatabase` ([Files and databases](files-and-databases.md)). On a web page the browser keeps them. An app that runs scenes and has real files, such as one on a phone or a desktop, can take them instead by passing `storage`, an object with any of these four functions:
+
+```js
+runScene(box, {
+  src: "game.js",
+  storage: {
+    async readText(path) { … },          // the file's text, or null when there is no such file
+    async writeText(path, text) { … },
+    async readBytes(path) { … },         // the file's bytes as a Uint8Array, or null when there is no such file
+    async writeBytes(path, bytes) { … }, // bytes is a Uint8Array
+  },
+})
+```
+
+- **A path** is relative, with `/` between its parts and no `.` or `..` in it: `notes.txt`, `levels/caves.json`, `scores.db`. It never starts with `/`. Put it under a folder you choose for the scene.
+- **`saveText` and `saveJSON`** call `writeText`. **`loadText` and `loadJSON`** call `readText` first, and read the file beside the scene when it gives `null`.
+- **A database is one file.** SQLite runs inside pictures.js, so the app needs no SQLite of its own. `openDatabase("scores")` calls `readBytes("scores.db")` once. After a change, the whole file is handed to `writeBytes`: about a twentieth of a second after a burst of changes, when the scene calls `close()`, and when the scene is stopped.
+- **A function you leave out** is done by the browser, as on a web page. With only `readBytes` and `writeBytes`, text files stay in the browser.
+- **A function that fails** (a promise that rejects) stops the scene with an error that carries your message, except for a database's write a moment after a change: that one is warned about in the console and tried again at the next change.
+
+Without `storage`, text files are in the page's `localStorage` under `pictures:<scene>:file:<path>`, and databases are in IndexedDB: the database `pictures`, its store `files`, under the same key. `<scene>` is the scene's address, or `savedAs` when you give it.
+
+### Picture methods
+
+pictures.js loads and draws pictures. It does not change them: it has no background remover, no resizer and no tracer of its own. An app that runs scenes and has such tools can lend them to a scene, as methods of every picture `loadImage` gives: `await img.removeBackground()`, `await img.resize({ width: 800 })`. [Circuitry Studio](https://www.circuitry.dev/docs/pictures/images) does, and its page lists the methods it supplies. They are the app's, not the library's: on a page of your own, and in a page made with `pictures build`, a picture has none.
+
+The app passes `pictures`. The library names no method itself. It makes one for each entry of `methods`, so a new one needs no change here:
+
+```js
+runScene(box, {
+  src: "shop.js",
+  pictures: {
+    methods: [
+      { name: "remove_background" },
+      { name: "resize", options: ["width", "height", "percent", "fit"] },
+      { name: "classify", options: ["max_labels"] },
+    ],
+    async run(picture, name, options) { … },   // what it made, see below
+    async save(picture, path) { … },           // the path written
+    async available() { … },                   // the names this device can run, a list
+  },
+})
+```
+
+- **Names are in your spelling, the scene writes either.** `remove_background` (or `removeBackground`) gives a picture both `img.removeBackground()` and `img.remove_background()`, and an option named `max_labels` is taken as `maxLabels` too. `run` is always called with the name and the option names exactly as `methods` has them.
+- **`run(picture, name, options)`** is given the picture (the image element `loadImage` made), and gives a promise of one of:
+
+  | It gives | The scene gets |
+  |---|---|
+  | `{ picture: address }` | A new picture, loaded, with all the methods. The address is anything an image can load, such as a `blob:` address. |
+  | `{ data }` | The data as it is. With `overlay: address` beside it, `{ found: data, overlay: picture }`. |
+  | `{ vector: svgText, shapes }` | A picture of the SVG, to draw at any size, with `svg` and `shapes` on it and `save()` as its only method. |
+  | `{ files: names }` | `{ names, save(folder) }`. |
+
+  Put `ref` beside any of them (`overlayRef` for the overlay) and that value is what `run` and `save` are given, in place of the picture, when the scene changes or saves that result. It is your own name for something you made, so its pixels need not come back to you.
+- **A method never changes the picture it is called on.** The library sees to that: what `run` gives is always a new thing.
+- **`available()`** gives the names that work on this device. Without it, every name in `methods` is given. The scene gets them in JavaScript's spelling.
+- **`await img.run("name", options)`** in a scene calls `run` for any name in `methods`.
+- **A promise that rejects** stops the scene with an error that carries your message. The library itself refuses an option that `methods` does not list, and a method that is not there, before it asks you.
+
+Without `pictures`, a picture has `run`, `save` and `available` and nothing else. `available()` gives an empty list, and calling a method stops the scene with: *A picture has no removeBackground() on this page: the methods that change a picture work inside Circuitry, where the app does the work*.
 
 ## Try the example
 
@@ -117,7 +186,7 @@ Then open `http://localhost:8000/examples/website/`. Any other static web server
 
 ## Things to know
 
-- **Nothing big is loaded.** A 2D scene needs `pictures.js` alone, which is about 15 KB. A 3D scene also loads three.js from the `three` folder, about 750 KB, once for the whole page.
+- **Nothing big is loaded.** A 2D scene needs `pictures.js` alone, which is about 15 KB. A 3D scene also loads three.js from the `three` folder, about 750 KB, once for the whole page. A scene that opens a database loads SQLite from the `sqlite` folder, about 700 KB, in the same way.
 - **A loop that never waits** (`while (true)` without `await frame()`) freezes the whole page, not only its scene, because scenes run on the page's own thread. Use `draw()` and `update()`, or wait in every loop. A page that calls `runScene` itself can pass `stopStuckLoops: true` to have such a loop stopped.
 - **A page with scenes must be served** over `http://` or `https://`. Opening it straight from disk (`file://`) does not work, because the browser will not load the scene's `.js` file that way.
 - **Paths a scene loads are relative to the scene's file**, not the page: a scene at `scenes/game.js` that calls `loadImage("sprites/ship.png")` reads `scenes/sprites/ship.png`. The same goes for `loadText` and `loadJSON`. The one exception is `new THREE.TextureLoader().load(...)`, which is three.js's own loader and takes a path from the page.

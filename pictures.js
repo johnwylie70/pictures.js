@@ -31,12 +31,20 @@
  *                           shapes. It has x, y, vx, vy, angle, spin, size, shape ("circle" or "box"), visible, and
  *                           update(dt), draw(), touches(other), hit(list), contains(x, y), wrap(), bounce(),
  *                           offscreen(), push(amount), forward(distance), limit(speed), angleTo(), distanceTo()
+ *                           A picture from loadImage has methods that change it where the app that runs the scene
+ *                           supplies them (Circuitry does; see PICTURE METHODS): `await img.removeBackground()`,
+ *                           `await img.resize({ width: 800 })`, `await img.save("cutout.png")`, `await img.available()`
  *   remove                  take a thing out of a list: `remove(rocks, rock)`. Loop over a copy while removing:
  *                           `for (const rock of [...rocks])`
  *   save, load              values that are still there next time: `save("best", score)` keeps one under a name, and
  *                           `load("best", 0)` gives it back (0 if nothing was saved). Numbers, text, true and false,
  *                           lists and objects. Kept by the browser, for this scene alone
- *   loadText, loadJSON      a file beside the scene, with `await`
+ *   loadText, loadJSON      a file beside the scene, or one the scene saved, with `await`
+ *   saveText, saveJSON      write a file, with `await`: `await saveText("notes.txt", words)`, `await saveJSON("level.json", level)`.
+ *                           loadText and loadJSON give it back the next time
+ *   openDatabase            a SQLite database, with `await`: `const db = await openDatabase("scores")`, then
+ *                           `await db.query("select name from best where points > ?", 10)` gives a list of rows,
+ *                           `await db.run("insert into best values (?, ?)", "Ann", 12)` changes it, `await db.close()`
  *   loadFont                a font file beside the scene, with `await`: `await loadFont("Orbitron", "fonts/Orbitron.woff2")`
  *   use                     another .js file beside the scene, with `await`: what it exports
  *   measure                 time a part of your frame: `measure("physics", () => { … })`, shown with the frame rate
@@ -70,7 +78,7 @@ const AsyncFunction = (async () => {}).constructor
 
 /** The names a scene is given, in the order they are passed. */
 const GIVEN = ['__loop', 'ctx', 'canvas', 'THREE', 'addons', 'frame', 'vsync', 'flush', 'sleep', 'keys', 'mouse', 'pressed', 'released',
-  'touches', 'pinch', 'circle', 'rect', 'line', 'text', 'background', 'triangle', 'ellipse', 'polygon', 'star', 'picture', 'random', 'pick', 'degrees', 'Sprite', 'remove', 'loadImage', 'load_image', 'loadText', 'load_text', 'loadJSON', 'load_json', 'loadFont', 'load_font', 'save', 'load', 'use', 'measure']
+  'touches', 'pinch', 'circle', 'rect', 'line', 'text', 'background', 'triangle', 'ellipse', 'polygon', 'star', 'picture', 'random', 'pick', 'degrees', 'Sprite', 'remove', 'loadImage', 'load_image', 'loadText', 'load_text', 'loadJSON', 'load_json', 'saveText', 'save_text', 'saveJSON', 'save_json', 'openDatabase', 'open_database', 'loadFont', 'load_font', 'save', 'load', 'use', 'measure']
 /** The functions a scene may define, Python spelling beside the JavaScript one. */
 const HOOKS = {
   setup: ['setup'], update: ['update'], draw: ['draw'],
@@ -91,6 +99,140 @@ const HOOKS = {
  */
 const KEPT = new Map()
 const CAN_KEEP = 'It can keep numbers, text, true and false, lists and objects'
+
+/**
+ * FILES AND DATABASES: `await saveText("notes.txt", text)`, `await saveJSON("level.json", value)` and
+ * `await openDatabase("scores")`. A scene writes files by a path of its own, and `loadText` and
+ * `loadJSON` give back what was written (or, with nothing written, the file beside the scene).
+ *
+ * WHERE A FILE GOES is the host's to say: `options.storage` may have any of `readText(path)`,
+ * `writeText(path, text)`, `readBytes(path)` and `writeBytes(path, bytes)`, each giving a promise
+ * (a read gives null for a file that is not there). An app that runs the scene on a phone or a
+ * computer writes real files with them. What the host leaves out is kept by the browser:
+ * text in localStorage beside the saved values, under `pictures:<the scene>:file:<path>`, and
+ * bytes in IndexedDB (the database `pictures`, its store `files`) under the same key. Where the
+ * browser will keep nothing, a file is kept here for as long as the page is open, as a saved value is.
+ *
+ * A DATABASE IS A FILE TOO. SQLite itself runs here (sql.js, from the `sqlite` folder, loaded the
+ * first time a scene opens a database), on the file's bytes: read whole with `readBytes` when the
+ * database is opened, and written back whole with `writeBytes` a moment after a change, so a host
+ * only ever sees files.
+ */
+const KEPT_BYTES = new Map()
+
+/**
+ * PICTURE METHODS: `await img.removeBackground()`, `await img.resize({ width: 800 })`, `await img.trace({ colors: 6 })`.
+ * Each gives a promise of a NEW picture (or of data), and never changes the picture it was called on.
+ *
+ * NONE OF THEM IS DONE HERE, and none is named here. The app that runs the scene says what a picture can
+ * do and does the work: `options.pictures` has `methods`, a list of `{ name, options }` (the method's name
+ * and the names of the options it takes, in either spelling), and
+ *
+ *   run(picture, name, options)   a promise of what it made: `{ picture: address }`, `{ vector: svgText, shapes }`,
+ *                                 `{ files: names }`, or `{ data }` (with `overlay: address` for a picture of
+ *                                 what was found). `ref` beside any of them is the host's own name for the
+ *                                 result: it is given back, in place of the picture, when that result is
+ *                                 changed again or saved
+ *   save(picture, path)           a promise of the path written
+ *   available()                   a promise of the names this device can run
+ *
+ * `name` and the keys of `options` reach the host in the host's spelling, whichever the scene wrote
+ * (`removeBackground` or `remove_background`, `maxLabels` or `max_labels`). With no host (this file on a
+ * page of its own) a picture has `run`, `save` and `available` and nothing else: `available()` gives an
+ * empty list and the others say where the methods work.
+ */
+const camel = (name) => String(name).replace(/[-_]+([a-z0-9])/gi, (_, c) => c.toUpperCase())
+const snake = (name) => camel(name).replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
+/** The names a scene calls as methods (`thing.name(`), so a picture can answer for one it does not have. */
+const methodsCalled = (code) => [...new Set([...code.matchAll(/\.\s*([A-Za-z_$][\w$]*)\s*\(/g)].map((m) => m[1]))].filter((n) => n !== 'then')
+/** How long after a change a database's file is written, in milliseconds: a burst of changes is one write. */
+const WRITE_AFTER_MS = 50
+
+/** A file's path as a scene may write it: inside the scene's own area, whatever is asked for (no leading /, no . or .. parts). */
+const filePath = (path) => String(path).split(/[\\/]+/).filter((part) => part && part !== '.' && part !== '..').join('/')
+/** A value as the person wrote it, for a message. */
+const shown = (value) => (typeof value === 'string' ? JSON.stringify(value) : String(value))
+/** The start of some SQL, for a message. */
+const shortSQL = (sql) => {
+  const line = String(sql).trim().replace(/\s+/g, ' ')
+  return JSON.stringify(line.length > 60 ? `${line.slice(0, 57)}…` : line)
+}
+/** How many `?` some SQL has outside its strings and comments; -1 when it names its values another way (`?1`, `:name`). */
+const marksIn = (sql) => {
+  const bare = sql.replace(/'(?:[^']|'')*'|"(?:[^"]|"")*"|--[^\n]*|\/\*[\s\S]*?\*\//g, '')
+  return /\?\d|[:@$][A-Za-z_]/.test(bare) ? -1 : (bare.match(/\?/g) || []).length
+}
+const notKept = (said, e) => {
+  if (!KEPT.warned) console.warn(`${said}: the browser would not keep it (${e?.message ?? e}), so it will be forgotten when the page is closed`)
+  KEPT.warned = true
+}
+
+// --- what the browser keeps when the host keeps nothing: text
+const keptText = (key) => {
+  let kept = KEPT.get(key)
+  if (kept === undefined) {
+    try { kept = localStorage.getItem(key) } catch (e) { /* no storage */ }
+  }
+  return kept ?? null
+}
+const keepText = (key, text, said) => {
+  try {
+    localStorage.setItem(key, text)
+    KEPT.delete(key)
+  } catch (e) {
+    // No storage, or it is full: the scene carries on, and the file lasts while the page is open.
+    KEPT.set(key, text)
+    notKept(said, e)
+  }
+}
+// --- and bytes: one IndexedDB database for the page, opened the first time it is wanted
+let shelf = null
+const onShelf = (mode, ask) => (shelf ??= new Promise((resolve, reject) => {
+  const opening = indexedDB.open('pictures', 1)
+  opening.onupgradeneeded = () => opening.result.createObjectStore('files')
+  opening.onsuccess = () => resolve(opening.result)
+  opening.onerror = () => reject(opening.error)
+})).then((db) => new Promise((resolve, reject) => {
+  // Asked and answered in one go: a transaction ends when the page gets a moment to itself.
+  const work = db.transaction('files', mode)
+  const request = ask(work.objectStore('files'))
+  work.oncomplete = () => resolve(request.result)
+  work.onerror = work.onabort = () => reject(work.error || request.error)
+}))
+const keptBytes = async (key) => {
+  if (KEPT_BYTES.has(key)) return KEPT_BYTES.get(key)
+  try { return (await onShelf('readonly', (files) => files.get(key))) ?? null } catch (e) { return null }
+}
+const keepBytes = async (key, bytes, said) => {
+  try {
+    await onShelf('readwrite', (files) => files.put(bytes, key))
+    KEPT_BYTES.delete(key)
+  } catch (e) {
+    KEPT_BYTES.set(key, bytes)
+    notKept(said, e)
+  }
+}
+
+/**
+ * SQLite, loaded the first time a scene opens a database: sql.js, from the `sqlite` folder beside this
+ * file, or from the folder a host names (`options.sqlite`). It is a plain script that leaves `initSqlJs`
+ * on the page; a page that has put its own there already is not asked to load another.
+ */
+let sqlite = null
+function loadSqlite(folder) {
+  const from = folder ? new URL(folder.replace(/\/?$/, '/'), document.baseURI) : new URL('sqlite/', BASE)
+  sqlite ??= new Promise((resolve, reject) => {
+    if (typeof globalThis.initSqlJs === 'function') return resolve()
+    const script = document.createElement('script')
+    script.src = new URL('sql-wasm.js', from).href
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error(`there is no ${script.src}`))
+    document.head.append(script)
+  }).then(() => globalThis.initSqlJs({ locateFile: (file) => new URL(file, from).href }))
+    // A failure is not remembered: the next openDatabase tries again.
+    .catch((e) => { sqlite = null; throw e })
+  return sqlite
+}
 
 /** Lines the wrapper puts above the scene's first line, for error messages. */
 const LINES_ABOVE = 4
@@ -413,12 +555,23 @@ function syntaxLine(source) {
  * @param {HTMLElement} container  The canvas fills it and follows its size.
  * @param {{ source?: string, src?: string, name?: string, base?: string, savedAs?: string,
  *           keyboard?: boolean, files?: Record<string, string>, fps?: boolean, stopStuckLoops?: boolean, crossOrigin?: string,
+ *           storage?: { readText?: (path: string) => Promise<string | null>, writeText?: (path: string, text: string) => Promise<void>,
+ *                       readBytes?: (path: string) => Promise<Uint8Array | null>, writeBytes?: (path: string, bytes: Uint8Array) => Promise<void> },
+ *           sqlite?: string,
+ *           pictures?: { methods: { name: string, options?: string[] }[], run: (picture: HTMLImageElement | unknown, name: string, options: object) => Promise<object>,
+ *                        save?: (picture: HTMLImageElement | unknown, path: string) => Promise<string>, available?: () => Promise<string[]> },
  *           onError?: (message: string, line: number) => void,
  *           onStatus?: (status: 'starting'|'running'|'finished'|'error') => void }} options
  *   `source` is the scene's code, or `src` its address. `base` is where files
  *   it loads by a relative path are (the scene's own folder by default).
  *   `files` maps a path as the scene writes it to an address to load instead, for a host with no folder to serve.
  *   `savedAs` names the scene for the values it saves with save() (its address by default, or its name on a page with none).
+ *   `storage` is where the files the scene writes are kept (saveText, saveJSON, and a database's file), for a host that has
+ *   real files to give it: any of `readText`, `writeText`, `readBytes` and `writeBytes`, each given a clean relative path. A read
+ *   gives null for a file that is not there. Without it, or for the ones left out, the browser keeps them (see FILES AND DATABASES).
+ *   `sqlite` is the folder sql.js is loaded from (`sql-wasm.js` and `sql-wasm.wasm`), in place of the `sqlite` folder beside this file.
+ *   `pictures` gives a loaded picture its methods (`await img.removeBackground()`), for a host that can change pictures: the list of
+ *   them and the functions that do the work (see PICTURE METHODS). Without it a picture has none, and says where they work.
  *   `stopStuckLoops` stops a loop that holds the page for 4 seconds (see `guardLoops`); off unless asked for.
  *   `fps` shows the frame rate in a corner of the scene, with any measure() timings under it (also `showFps(on)` on what is returned).
  *   `keyboard` gives the scene the keyboard from the start (a scene that is the whole page).
@@ -438,6 +591,22 @@ export function runScene(container, options = {}) {
   // A page with no address of its own (an editor's preview) has storage for one scene only: its name will do.
   const savedAs = 'pictures:' + (options.savedAs ?? (!/^(?:https?|file):$/.test(location.protocol) ? name
     : options.src ? new URL(options.src, document.baseURI).pathname : `${location.pathname}#${name}`)) + ':'
+  // Where the scene's files are kept: the host's storage, and the browser for whatever the host leaves out.
+  const host = options.storage || {}
+  const store = {
+    readText: host.readText ? (path) => host.readText(path) : async (path) => keptText(`${savedAs}file:${path}`),
+    writeText: host.writeText ? (path, text) => host.writeText(path, text) : async (path, text, said) => keepText(`${savedAs}file:${path}`, text, said),
+    readBytes: host.readBytes ? (path) => host.readBytes(path) : (path) => keptBytes(`${savedAs}file:${path}`),
+    writeBytes: host.writeBytes ? (path, bytes) => host.writeBytes(path, bytes) : (path, bytes, said) => keepBytes(`${savedAs}file:${path}`, bytes, said),
+  }
+  // The last write of each file, so writes of one file go in order and a read waits for them. It outlasts
+  // a run: a scene that is run again reads what the run before it was still writing.
+  const writes = new Map()
+  const write = (file, how, what, said) => {
+    const done = (writes.get(file) || Promise.resolve()).catch(() => {}).then(() => store[how](file, what, said))
+    writes.set(file, done)
+    return done
+  }
 
   if (getComputedStyle(container).position === 'static') container.style.position = 'relative'
   if (!container.clientHeight) container.style.aspectRatio = '16 / 9'
@@ -822,15 +991,258 @@ export function runScene(container, options = {}) {
         const img = new Image()
         if (options.crossOrigin && !/^[a-z][a-z0-9+.-]*:/i.test(src)) img.crossOrigin = options.crossOrigin
         img.src = at(src)
+        return changeable(img)
+      }
+      // --- the methods of a picture (see PICTURE METHODS): the host's, under both spellings
+      const artist = options.pictures || null
+      const can = new Map((artist?.methods || []).map((m) => [camel(m.name), m]))
+      const called = methodsCalled(code)
+      // `known` is what the host knows the picture by: the picture itself, or the host's own name for one it made.
+      const changeable = (img, known = img, whole = true) => {
+        const elsewhere = (name) => new Error(`A picture has no ${name}() on this page: the methods that change a picture work inside Circuitry, where the app does the work`)
+        const run = async (name, given) => {
+          const said = camel(name), m = can.get(said)
+          if (!artist?.run) throw elsewhere(said)
+          if (!m) throw new Error(`A picture has no ${name}(). \`await img.available()\` lists what it can do`)
+          const takes = m.options || []
+          if (given != null && typeof given !== 'object') throw new Error(`${said}(${shown(given)}) needs its options in braces${takes.length ? `, as in ${said}({ ${camel(takes[0])}: … })` : ''}`)
+          const asked = {}
+          for (const [key, value] of Object.entries(given || {})) {
+            const option = takes.find((o) => camel(o) === camel(key))
+            if (!option) throw new Error(`${said}() has no option "${key}". ${takes.length ? `It takes ${takes.map(camel).join(', ')}` : 'It takes none'}`)
+            asked[option] = value
+          }
+          return made(await artist.run(known, m.name, asked))
+        }
+        const methods = {
+          save: async (path) => {
+            if (!artist?.save) throw elsewhere('save')
+            if (typeof path !== 'string' || !path.trim()) throw new Error(`save(${path === undefined ? '' : shown(path)}) needs the name of a file, as in save("cutout.png")`)
+            return artist.save(known, path)
+          },
+        }
+        if (whole) {
+          methods.run = run
+          methods.available = async () => (artist?.available ? (await artist.available()).map(camel) : [...can.keys()])
+          for (const m of can.values()) for (const name of [camel(m.name), snake(m.name)]) methods[name] = (given) => run(m.name, given)
+          // A method the scene calls that no picture has: it says so, where a missing function would only say it is missing.
+          for (const name of called) if (!(name in methods) && !(name in img)) methods[name] = () => run(name)
+        }
+        for (const [name, method] of Object.entries(methods)) {
+          // Never over something a picture already is (its width, its src): only over nothing, or another function.
+          if (!(name in img) || typeof img[name] === 'function') Object.defineProperty(img, name, { value: method, configurable: true, writable: true })
+        }
         return img
+      }
+      // A picture the host made, once it can be drawn.
+      const drawable = (address, known, whole) => new Promise((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => resolve(changeable(img, known ?? img, whole))
+        img.onerror = () => reject(new Error('The picture that came back could not be shown'))
+        img.src = address
+      })
+      const made = async (reply) => {
+        if (!reply || typeof reply !== 'object') return reply
+        if (reply.picture) return drawable(reply.picture, reply.ref, true)
+        if (typeof reply.vector === 'string') {
+          // Traced shapes are a picture too: drawn like any other, with the SVG text beside it.
+          const address = URL.createObjectURL(new Blob([reply.vector], { type: 'image/svg+xml' }))
+          cleanup.push(() => URL.revokeObjectURL(address))
+          return Object.assign(await drawable(address, reply.ref, false), { svg: reply.vector, shapes: reply.shapes ?? 0 })
+        }
+        if (reply.files) return changeable({ names: [...reply.files] }, reply.ref, false)
+        return reply.overlay ? { found: reply.data, overlay: await drawable(reply.overlay, reply.overlayRef, true) } : reply.data
       }
       const read = async (path) => {
         const reply = await fetch(at(path))
         if (!reply.ok) throw new Error(`There is no file "${path}" beside the scene`)
         return reply
       }
-      const loadText = async (path) => (await read(path)).text()
-      const loadJSON = async (path) => (await read(path)).json()
+      // --- files the scene writes (see FILES AND DATABASES)
+      const named = (call, path, like) => {
+        const file = typeof path === 'string' ? filePath(path) : ''
+        if (!file) throw new Error(`${call}(${path === undefined ? '' : shown(path)}) needs the name of a file, as in ${call}(${like})`)
+        return file
+      }
+      // What the scene saved under this path, or null. An address (https://…) is never one of its own files.
+      const saved = async (call, path) => {
+        const file = typeof path === 'string' && !/^[a-z][a-z0-9+.-]*:/i.test(path) ? filePath(path) : ''
+        if (!file) return null
+        await writes.get(file)?.catch(() => {})
+        try {
+          return (await store.readText(file)) ?? null
+        } catch (e) {
+          throw new Error(`${call}("${path}"): the file could not be read (${e?.message ?? e})`)
+        }
+      }
+      const loadText = async (path) => (await saved('loadText', path)) ?? (await read(path)).text()
+      const loadJSON = async (path) => {
+        const text = await saved('loadJSON', path)
+        if (text === null) return (await read(path)).json()
+        try { return JSON.parse(text) } catch (e) { throw new Error(`loadJSON("${path}"): what is saved there is not JSON (${e.message})`) }
+      }
+      const saveText = async (path, text) => {
+        const file = named('saveText', path, '"notes.txt", words')
+        if (text == null) throw new Error(`saveText("${path}", …) was given nothing to write`)
+        try {
+          await write(file, 'writeText', String(text), `saveText("${path}", …)`)
+        } catch (e) {
+          throw new Error(`saveText("${path}", …): the file could not be written (${e?.message ?? e})`)
+        }
+      }
+      const saveJSON = async (path, value) => {
+        const file = named('saveJSON', path, '"level.json", level')
+        let kept
+        try { kept = JSON.stringify(value) } catch (e) { /* a thing that holds itself */ }
+        if (kept === undefined) throw new Error(`saveJSON("${path}", …) was given something it cannot keep. ${CAN_KEEP}`)
+        try {
+          await write(file, 'writeText', kept, `saveJSON("${path}", …)`)
+        } catch (e) {
+          throw new Error(`saveJSON("${path}", …): the file could not be written (${e?.message ?? e})`)
+        }
+      }
+
+      // --- databases. Each is SQLite working on a copy of its file here, written back whole after a change.
+      const databases = new Map() // file -> a promise of the database, while it is open
+      const open = async (file, said) => {
+        let SQL
+        try { SQL = await loadSqlite(options.sqlite) } catch (e) { throw new Error(`${said}: SQLite could not be loaded (${e?.message ?? e})`) }
+        await writes.get(file)?.catch(() => {})
+        let bytes
+        try { bytes = await store.readBytes(file) } catch (e) { throw new Error(`${said}: the file "${file}" could not be read (${e?.message ?? e})`) }
+        if (!live()) return new Promise(() => {}) // the scene was stopped while it waited
+        let db
+        try {
+          db = new SQL.Database(bytes ? (bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)) : undefined)
+          db.exec('select count(*) from sqlite_master')
+        } catch (e) {
+          db?.close()
+          throw new Error(`${said}: the file "${file}" is not a SQLite database (${e?.message ?? e})`)
+        }
+        let dirty = false, timer = 0, writing = null, warned = false
+        const changes = () => db.exec('select total_changes()')[0].values[0][0]
+        // SQLite refuses a transaction inside a transaction: that is how to ask whether one is open.
+        const inTransaction = () => {
+          try { db.exec('begin') } catch (e) { return true }
+          db.exec('rollback')
+          return false
+        }
+        // The file as it is now, on its way to storage. Taking a copy closes and opens SQLite's own
+        // connection, which would undo a transaction still open: then the write waits for its commit
+        // (when closing, what was never committed is undone, as SQLite does). `pragma foreign_keys`
+        // is the one setting a scene is likely to have made that the reopening forgets, so it is put back.
+        const flush = (closing) => {
+          clearTimeout(timer)
+          timer = 0
+          if (!dirty) return writing || Promise.resolve()
+          if (inTransaction()) {
+            if (!closing) return Promise.resolve()
+            db.exec('rollback')
+          }
+          dirty = false
+          const foreignKeys = db.exec('pragma foreign_keys')[0].values[0][0]
+          const now = db.export()
+          if (foreignKeys) db.exec('pragma foreign_keys = on')
+          const mine = writing = write(file, 'writeBytes', now, said).then(() => { if (writing === mine) writing = null }, (e) => {
+            if (writing === mine) writing = null
+            dirty = true
+            throw e
+          })
+          return mine
+        }
+        // A burst of changes is one write: a moment after the first, and not while the last write is still going.
+        const later = () => {
+          timer ||= setTimeout(() => {
+            timer = 0
+            if (writing) return writing.catch(() => {}).then(() => { if (dirty && entry.opens) later() })
+            flush().catch(couldNotWrite)
+          }, WRITE_AFTER_MS)
+        }
+        const couldNotWrite = (e) => {
+          if (!warned) console.warn(`${said}: the file "${file}" could not be written (${e?.message ?? e}). It is tried again at the next change`)
+          warned = true
+        }
+        const does = (call, sql, values, work) => {
+          if (!entry.opens) throw new Error(`db.${call}(…): the database "${file}" is closed. Open it again with ${said}`)
+          if (typeof sql !== 'string' || !sql.trim()) throw new Error(`db.${call}(${sql === undefined ? '' : shown(sql)}) needs SQL to ${call}, as text`)
+          // The values for the ? marks: one after another, or one list of them.
+          const list = (values.length === 1 && Array.isArray(values[0]) ? values[0] : values).map((v) => (v === undefined ? null : v))
+          const marks = marksIn(sql)
+          if (marks >= 0 && marks !== list.length) {
+            throw new Error(`db.${call}(${shortSQL(sql)}) has ${marks} ? mark${marks === 1 ? '' : 's'} and was given ${list.length} value${list.length === 1 ? '' : 's'}`)
+          }
+          const before = changes()
+          try {
+            const answer = work(list)
+            return call === 'run' ? changes() - before : answer
+          } catch (e) {
+            throw new Error(`db.${call}(${shortSQL(sql)}): ${e?.message ?? e}`)
+          } finally {
+            if (call === 'run' || changes() !== before) dirty = true
+            if (dirty) later()
+          }
+        }
+        // What the scene is given.
+        const handle = {
+          /** The rows a `select` finds: a list of objects, one for each row, with the columns as names. */
+          async query(sql, ...values) {
+            return does('query', sql, values, (list) => {
+              const rows = []
+              const statement = db.prepare(sql)
+              try {
+                statement.bind(list)
+                while (statement.step()) rows.push(statement.getAsObject())
+              } finally { statement.free() }
+              return rows
+            })
+          },
+          /** Change the database (`insert`, `update`, `delete`, `create table`): how many rows changed. */
+          async run(sql, ...values) {
+            return does('run', sql, values, (list) => { db.run(sql, list.length ? list : undefined) })
+          },
+          /** Write what is left to write and let go of the database. Opened twice, it closes at the second close. */
+          async close() {
+            if (!entry.opens || --entry.opens) return
+            try {
+              await entry.shut()
+            } catch (e) {
+              throw new Error(`db.close(): the file "${file}" could not be written (${e?.message ?? e})`)
+            }
+          },
+        }
+        // What the library keeps: how many times it is open, and how to write it and shut it whatever that count.
+        const entry = {
+          handle,
+          file,
+          opens: 0,
+          write: () => flush(),
+          shut() {
+            entry.opens = 0
+            databases.delete(file)
+            try { return flush(true) } finally { db.close() }
+          },
+        }
+        return entry
+      }
+      const openDatabase = async (name) => {
+        const said = `openDatabase(${name === undefined ? '' : shown(name)})`
+        let file = named('openDatabase', name, '"scores"')
+        // A name with no ending is a .db file.
+        if (!/\.[^./]+$/.test(file)) file += '.db'
+        // Opened again while it is open, it is the same database: two copies would write over each other.
+        if (!databases.has(file)) {
+          const mine = open(file, said)
+          databases.set(file, mine)
+          mine.catch(() => { if (databases.get(file) === mine) databases.delete(file) })
+        }
+        const entry = await databases.get(file)
+        entry.opens++
+        return entry.handle
+      }
+      // When the scene stops, each database still open is written and closed; when the page is left, written.
+      const all = (act) => { for (const waiting of [...databases.values()]) waiting.then(act, () => {}) }
+      cleanup.push(() => all((db) => { if (db.opens) db.shut().catch((e) => console.warn(`The database "${db.file}" could not be written (${e?.message ?? e})`)) }))
+      listen(window, 'pagehide', () => all((db) => { if (db.opens) db.write().catch(() => {}) }))
       // A font from the scene's folder, ready for ctx.font by its family name. A font that
       // will not load is not an error: the text draws in the fallback the scene names.
       const loadFont = async (family, path, descriptors) => {
@@ -1289,7 +1701,8 @@ export function runScene(container, options = {}) {
         return
       }
       const given = { measure, __loop, ctx, canvas, THREE, addons, frame, vsync: frame, flush: frame, sleep, keys, mouse, pressed, released, touches, pinch, circle, rect, line, text, background, triangle, ellipse, polygon, star, picture, random, pick, degrees, Sprite, remove,
-        loadImage, load_image: loadImage, loadText, load_text: loadText, loadJSON, load_json: loadJSON, loadFont, load_font: loadFont, save, load, use }
+        loadImage, load_image: loadImage, loadText, load_text: loadText, loadJSON, load_json: loadJSON, saveText, save_text: saveText, saveJSON, save_json: saveJSON, openDatabase, open_database: openDatabase,
+        loadFont, load_font: loadFont, save, load, use }
       const begun = scene(...GIVEN.map((n) => given[n]), (set) => { setSize = set; resize() })
       status('running')
       hooks = await begun
