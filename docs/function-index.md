@@ -594,6 +594,7 @@ Explained in [Sound and music](sound.md).
 | `loopNotes(lines)`, `startLines()` | A section of such lines that goes round, and every line begun again from now | `loop_notes`, `start_lines` |
 | `makeSynth(name, settings)` | A synth of your own, from a ready-made one or from settings. It has `play`, `start`, `stop`, `playNotes`, `arp`, `startArp`, `set`, and every setting as a property | `make_synth` |
 | `loadSample(path, options)` | A recorded sound from a file beside the scene, as a synth | `load_sample` |
+| `loadSamples(files)` | Several recordings as one instrument: `loadSamples({ C2: "piano-C2.wav", C3: "piano-C3.wav" })`; `{ kit: true }` is a drum kit | `load_samples` |
 | `playArp(chord, length, options)` | A chord as a fast arpeggio on one voice | `play_arp` |
 | `startArp(chord, options)` | An arpeggio that stays: `change(chord)` and `stop()` | `start_arp` |
 | `mainSynth()` | The synth `playNote` and `playNotes` use | `main_synth` |
