@@ -54,6 +54,8 @@ const USES = [
   ['a sound', 'function onMouseDown() { playSound("laser") }\n', 'S-'],
   ['a sound in the Python spelling', 'play_sound("coin")\n', 'S-'],
   ['a sound function handed on, not called', 'const play = playNote\n', 'S-'],
+  ['note, chord and rest as words of the scene\'s own', 'const chord = [1, 2]\nlet rest = 3\nfor (const note of chord) circle(note, rest, 5)\nchord.map((note) => note + rest)\n', '--'],
+  ['a tune written a line at a time', 'note("E4", "quarter")\nrest()\n', 'S-'],
   ['beat() called', 'function draw() { circle(100, 100, 20 + 10 * (beat() % 1), "gold") }\n', 'S-'],
   ['a dial', 'const speed = dial("speed", 0, 10)\n', '-C'],
   ['over() asked in an if', 'function onMouseDown(x, y) {\n  if (over(x, y)) {\n    return\n  }\n}\n', '-C'],

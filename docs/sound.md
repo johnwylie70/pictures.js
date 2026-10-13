@@ -64,6 +64,24 @@ function draw() {
 
 The sound engine keeps the time, not your program. A tune stays even when a frame is slow, and several tunes started together stay together. [`examples/tune.js`](../examples/tune.js) has a melody, a bass line and drums.
 
+## A tune, one note a line
+
+`playNote` plays a note now. `note` plays the next note of a tune: each one begins where the one before it ended, so a tune is ordinary lines of code, with loops and ifs.
+
+```js
+function onMouseDown() {
+  setTempo(100)
+  note("E4", "quarter")
+  note("G4", "quarter")
+  rest("quarter")
+  note("C5", "half")
+  chord("Cm", "whole")
+  for (const name of ["C4", "D4", "E4"]) note(name, "eighth")
+}
+```
+
+A length is a name (`"whole"`, `"half"`, `"quarter"`, `"eighth"`) or a number of beats, and a quarter when you leave it out. Every synth has a line of its own (`lead.note("C4", "eighth")`), and lines written in the same go begin together. `loopNotes(() => { … })` has a section go round until its `stop()`, and `startLines()` begins every line again from now.
+
 ## A synth of your own
 
 ```js

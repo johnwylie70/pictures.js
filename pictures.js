@@ -50,7 +50,7 @@
  *   measure                 time a part of your frame: `measure("physics", () => { … })`, shown with the frame rate
  *   playSound, playNote,    sound: `playSound("coin")` is a ready-made game sound, `playNote("C4")` a note,
  *   playNotes, makeSynth,   `playNotes("C4 E4 G4 - C5", 0.25)` a tune, and `const lead = makeSynth("lead")` a synth whose
- *   loadSample, playArp…    settings are plain properties (`lead.cutoff = 800`). Also startArp, setEffects, setVolume,
+ *   loadSample, playArp…    settings are plain properties (`lead.cutoff = 800`). Also note, chord, rest, startArp, setEffects, setVolume,
  *                           muteSound, stopSound, setTempo, beats, beat and soundTime. The first click or tap turns the
  *                           sound on; it pauses while the scene is out of view and stops with the scene
  *   dial, slider, button,   controls on the scene, laid out for you: `const speed = dial("speed", 0, 10)` is a number to
@@ -95,7 +95,7 @@ const GIVEN = ['__loop', 'ctx', 'canvas', 'THREE', 'addons', 'frame', 'vsync', '
  * Do not edit them by hand.
  */
 /* SOUND_NAMES:BEGIN */
-const SOUND_NAMES = ['playSound', 'playNote', 'playNotes', 'makeSynth', 'loadSample', 'playSong', 'playArp', 'startArp', 'mainSynth', 'soundOutput', 'stopSong', 'stopSound', 'setVolume', 'muteSound', 'unmuteSound', 'setEffects', 'setTempo', 'beats', 'beat', 'soundTime', 'soundNames', 'synthNames', 'settingNames', 'noteNumber']
+const SOUND_NAMES = ['playSound', 'playNote', 'playNotes', 'makeSynth', 'loadSample', 'playSong', 'playArp', 'startArp', 'note', 'chord', 'rest', 'startLines', 'loopNotes', 'mainSynth', 'soundOutput', 'stopSong', 'stopSound', 'setVolume', 'muteSound', 'unmuteSound', 'setEffects', 'setTempo', 'beats', 'beat', 'soundTime', 'soundNames', 'synthNames', 'settingNames', 'noteNumber']
 /* SOUND_NAMES:END */
 /* DIAL_NAMES:BEGIN */
 const DIAL_NAMES = ['button', 'dial', 'keyboard', 'label', 'layout', 'meter', 'over', 'row', 'scope', 'select', 'slider', 'theme', 'toggle']

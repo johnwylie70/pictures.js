@@ -590,6 +590,8 @@ Explained in [Sound and music](sound.md).
 | `playSound(name, volume)` | A ready-made game sound: `coin`, `jump`, `laser`, `explosion`, `hit`, `powerup`, `blip`, `click`, `zap`, `bounce`, `pop`, `win`, `lose` | `play_sound` |
 | `playNote(note, length, volume)` | A note (`"C4"`, or 60), a list of notes, or a chord by name (`"Cm7"`) | `play_note` |
 | `playNotes(notes, step, options)` | A tune, a step at a time: `"C4 E4 G4 - C5:2"`. `{ repeat: true }` goes round. Gives a tune with `stop()` | `play_notes` |
+| `note(name, length)`, `chord(name, length)`, `rest(length)` | The next note, chord or gap of a tune written a line at a time. A length is `"quarter"`, `"half"`…, or beats | `note`, `chord`, `rest` |
+| `loopNotes(lines)`, `startLines()` | A section of such lines that goes round, and every line begun again from now | `loop_notes`, `start_lines` |
 | `makeSynth(name, settings)` | A synth of your own, from a ready-made one or from settings. It has `play`, `start`, `stop`, `playNotes`, `arp`, `startArp`, `set`, and every setting as a property | `make_synth` |
 | `loadSample(path, options)` | A recorded sound from a file beside the scene, as a synth | `load_sample` |
 | `playArp(chord, length, options)` | A chord as a fast arpeggio on one voice | `play_arp` |
