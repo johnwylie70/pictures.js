@@ -57,6 +57,11 @@
  *   lead.playFromMidi()     keyboard goes down (and `onMidiNoteOff`, `onMidiControl(number, value, channel)`, `onMidi(message)`,
  *                           `onMidiDevices(devices)`); `lead.playFromMidi()` has the keyboard play a synth, `lead.learn("cutoff")`
  *                           gives a setting to the next knob turned, and `sendMidiNote("C4")` plays a synth on the desk
+ *   useMicrophone,          your voice: `const mic = useMicrophone()` asks for the microphone and is a synth whose sound comes in
+ *   recordSound, saveSound  (`mic.voice = "robot"`, `mic.listen()`, `mic.pitch = 7`); `const take = recordSound(3)` is three seconds of it
+ *                           as a sample, given back at once (`take.onDone(() => take.play("E4"))`); `recordOutput(10)` records what is
+ *                           played, and `saveSound(take, "hello.wav")` saves a WAV file. Also startRecording, stopRecording,
+ *                           stopMicrophone, voiceNames, and `lead.voice`, `lead.pitchShift`, `lead.ringMod`, `lead.comb` on any synth
  *   dial, slider, button,   controls on the scene, laid out for you: `const speed = dial("speed", 0, 10)` is a number to
  *   toggle, select,         read (`speed.value`), `dial("cutoff", lead, "cutoff")` is that setting of a synth,
  *   keyboard, scope, meter  `keyboard(lead)` plays it and `scope(lead)` draws its wave. Also label, row, layout, theme, over
@@ -662,6 +667,8 @@ function syntaxLine(source) {
  *                     read?: (id?: string) => { samples: Float32Array, level: number[], notes: number[] },
  *                     wasm?: ArrayBuffer | Uint8Array | WebAssembly.Module | string | Promise<any>, worklet?: 'auto' | 'blob' | 'file' | string,
  *                     latency?: number, context?: AudioContext, destination?: AudioNode, fallback?: boolean | 'always', onState?: (state: string) => void },
+ *           microphone?: false | MediaStream | ((wants: object) => any) | { open: (wants: { sampleRate: number, raw: boolean, constraints: object, push: (frames: Float32Array, sampleRate?: number) => void }) => any, close?: () => void },
+ *           save?: (file: { name: string, bytes: Uint8Array, type: string }) => void,
  *           midi?: false | { open?: () => void | Promise<void>, inputs: () => string[], outputs: () => string[],
  *                            send: (bytes: number[], time: number, output?: string) => void,
  *                            receive: (listener: (bytes: number[] | Uint8Array, time?: number, input?: string) => void) => void,
@@ -692,6 +699,17 @@ function syntaxLine(source) {
  *   off. Without it the browser's Web MIDI is asked the first time a scene uses MIDI, and where there is none the scene still runs
  *   and the console says so once. A host that takes the commands itself (`sound.send`) carries out the `midi` commands among them
  *   with its own player, and hands back what was received through `sound.onMidi(listener, scope)`, as a player has it.
+ *   `microphone` is where a scene's microphone comes from (useMicrophone, recordSound), for a host whose page cannot ask the browser
+ *   or that has one already: a MediaStream, a function or `{ open(wants), close() }` that gives one, or that gives `true` and pushes
+ *   the frames itself with `wants.push(frames, sampleRate)` (synths.js's docs/microphone.md, "The microphone option"). `microphone:
+ *   false` says there is none, and nobody is asked. Without it the browser is asked the first time a scene uses the microphone, which
+ *   needs https or localhost, and `allow="microphone"` on the frame if the page is in one; where there is none the scene still runs
+ *   and the console says why once.
+ *   `save` is given each WAV file a scene's saveSound makes, `{ name, bytes, type: 'audio/wav' }`, in place of what would happen
+ *   otherwise: with `storage.writeBytes` the file is written there under its name, among the scene's other files, and with neither
+ *   the browser downloads it. Both may also be written inside `sound`. A host that takes the commands itself (`sound.send`) has the
+ *   microphone and the files in its own player, and hands back what that player says (the microphone is on or is not, a recording is
+ *   over, a file is saved) through `sound.onSoundEvents(listener, scope)`, as a player has it; without that a recording never says it is done.
  *   `pictures` gives a loaded picture its methods (`await img.removeBackground()`), for a host that can change pictures: the list of
  *   them and the functions that do the work (see PICTURE METHODS). Without it a picture has none, and says where they work.
  *   `stopStuckLoops` stops a loop that holds the page for 4 seconds (see `guardLoops`); off unless asked for.
@@ -1776,6 +1794,32 @@ export function runScene(container, options = {}) {
         // (`read` is the host player's own, part of the transport; the rest are the player's options.)
         const { send, read, readBytes, ...playing } = host
         if (options.midi !== undefined) playing.midi = options.midi
+        // THE MICROPHONE AND SAVED SOUND are the player's too: `options.microphone` is a host's own microphone (a stream, or
+        // frames it pushes) or false for none, and `options.save` takes the WAV files saveSound makes. With neither said, a
+        // host that keeps the scene's files (`storage.writeBytes`) is given a saved sound as a file among them, by its name;
+        // any other page downloads it.
+        if (options.microphone !== undefined) playing.microphone = options.microphone
+        // A scene that begins with the microphone is asked for it at once, while the sound still waits for the page to be
+        // touched. The library says it is waiting when a note is asked for; a microphone alone asks for none, so it is said here.
+        if (!send && usesAny(code, ['useMicrophone', 'recordSound', 'startRecording'])) {
+          const theirs = playing.onState
+          let said = false
+          playing.onState = (state) => {
+            theirs?.(state)
+            if (state !== 'waiting' || said) return
+            said = true
+            setTimeout(() => {
+              if (live() && voice?.player?.state === 'waiting') console.info('pictures.js: nothing is heard or recorded until the page has been touched: click, tap or press a key. The microphone is asked for without waiting for that.')
+            }, 400)
+          }
+        }
+        if (options.save !== undefined) playing.save = options.save
+        else if (!playing.save && options.storage?.writeBytes) {
+          playing.save = (file) => {
+            const path = filePath(file.name) || 'sound.wav'
+            return write(path, 'writeBytes', file.bytes, `saveSound(…, "${file.name}")`).catch((e) => console.warn(`saveSound(…, "${file.name}"): the file could not be written (${e?.message ?? e})`))
+          }
+        }
         sound = voice = soundLib.createSound({ ...playing, sound: send ? host : undefined, resolve: at, read: readBytes && ((path) => host.readBytes(path)) })
         let quiet = null
         hush = () => {
@@ -1788,6 +1832,8 @@ export function runScene(container, options = {}) {
         // Said once at the start too: that is what makes the player, or joins the page's.
         hush()
         cleanup.push(() => {
+          // A microphone the scene asked for is let go with the scene, so the browser's recording light goes out.
+          try { sound.stopMicrophone?.() } catch (e) { /* it was never opened */ }
           sound.close()
           if (voice === sound) voice = null
         })
