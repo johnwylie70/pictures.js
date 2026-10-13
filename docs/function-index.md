@@ -608,7 +608,7 @@ Explained in [Sound and music](sound.md).
 | `soundTime()` | The sound clock, in seconds: what `{ at }` is read against | `sound_time` |
 | `noteNumber(note)` | A note's number: `noteNumber("A4")` is 69 | `note_number` |
 | `soundNames()`, `synthNames()`, `settingNames()` | Lists of the game sounds, the ready-made synths and a synth's settings | `sound_names`, `synth_names`, `setting_names` |
-| `playSong(path, options)`, `stopSong()` | A song from a `.mod` or `.xm` file beside the scene. Gives a song with `pause()`, `resume()`, `seek(part)`, `stop()`, `volume` and `position` | `play_song`, `stop_song` |
+| `playSong(path, options)`, `stopSong()` | A song from a `.mod` or `.xm` file beside the scene. Gives a song with `pause()`, `resume()`, `seek(part)`, `stop()`, `volume` and `position`, and `mute(channel)`, `solo(channel)`, `loopPattern()` (`loop_pattern`) and `replace(song)` | `play_song`, `stop_song` |
 | `lead.voice`, `lead.pitchShift`, `lead.ringMod`, `lead.comb`, `lead.flanger` | On any synth: a voice by name (`"robot"`), the pitch shifter in semitones, the ring modulator, the comb and its sweep | `voice`, `pitch_shift`, `ring_mod`, `comb`, `flanger` |
 | `voiceNames()` | A list of the voices: robot, chipmunk, monster, cave, telephone, alien, whisper | `voice_names` |
 

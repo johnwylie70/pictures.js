@@ -111,7 +111,7 @@ The ready-made synths are `keys` (the one `playNote` uses), `bass`, `lead`, `pad
 | `lead.stop()` | Lets go of every note of the synth |
 | `lead.playNotes("C4 E4 G4", 0.25)` | A tune on this synth |
 | `lead.cutoff = 800` | Changes a setting. Notes that are sounding change too |
-| `lead.set({ cutoff: 4000 }, { glide: 2 })` | Changes several, or slides there over two seconds |
+| `lead.set({ cutoff: 4000 }, { glide: 2 })` | Changes several, or slides there over two seconds (`slide` is understood too) |
 
 ### Settings
 
@@ -173,6 +173,15 @@ function onMouseDown() {
 ```
 
 `song.pause()`, `song.resume()` and `song.stop()` do as they say, `song.volume = 0.5` turns it down, `song.seek(2)` jumps to its third part, and `playSong("tune.xm", { repeat: false })` plays it once. `song.position` says where it is, for drawing: `{ state, order, pattern, row, … }`. One song plays at a time, and your notes and game sounds play over it.
+
+A song is made of channels, counted from 0, and of patterns played in an order:
+
+```js
+song.mute(2)              // silence the third channel; song.mute(2, false) brings it back, and song.unmute() all of them
+song.solo(0)              // hear only the first; song.solo("all", false) to hear the rest again
+song.loopPattern()        // stay on the pattern that is playing, round and round; song.loopPattern(false) carries on
+song.replace(edited)      // an edited song in its place, as it plays: its bytes, its JSON as text, or the song as an object
+```
 
 ## Your voice
 
