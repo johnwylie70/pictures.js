@@ -57,21 +57,24 @@ const near = (a, b, by = 6) => a && a.length >= b.length && b.every((v, i) => Ma
 
 async function play(page, source, { until = 'window.result !== undefined', wait = 5000 } = {}) {
   asked.length = 0
-  const begin = () => page.evaluate(async (source) => {
+  const token = `${Date.now()}-${Math.random()}`
+  const begin = () => page.evaluate(async ([source, token]) => {
     const { runScene } = await import('/pictures.js')
     window.scene?.stop()
     document.getElementById('s').replaceChildren()
     window.result = undefined
     window.error = null
     window.scene = runScene(document.getElementById('s'), { source, name: 'scene.js', keyboard: true, onError: (message, line) => { window.error = { error: message, line } } })
-  }, source)
-  // Headless Chromium now and then replaces the page's world just after a scene that played a song is stopped
-  // (the reason is not known: nothing navigates and nothing is said). The scene is then started again, once.
+    window.started = token
+  }, [source, token])
+  // In headless Chromium the ANSWER to this call is now and then lost ("execution context was destroyed") when the
+  // scene it stops was playing a song, though nothing navigates or crashes and the page carries on untouched: the new
+  // scene is running. (Measured: the page's own marks are still there and its scene's status is "running".) So the
+  // page is asked whether the scene was started, and it is started again only if it was not.
   try { await begin() } catch (e) {
     if (!/context was destroyed/i.test(String(e.message))) throw e
-    await page.waitForLoadState('load').catch(() => {})
     await page.waitForTimeout(300)
-    await begin()
+    if ((await page.evaluate(() => window.started)) !== token) await begin()
   }
   await page.waitForFunction(`window.error || (${until})`, null, { timeout: wait }).catch(() => {})
   return page.evaluate(() => window.error || window.result || {})
@@ -167,6 +170,37 @@ window.read = () => new Promise((done) => fxs.onFrame((fx) => { fxs.onFrame(null
   // Inverted: red is cyan, blue is yellow, and half of each is a pale green.
   say(Array.isArray(got) && !got[5] && near(got[0].colour, [0, 255, 255], 2) && near(got[1].colour, [0, 255, 255], 3) && near(got[2].colour, [128, 255, 128], 5) && near(got[3].colour, [255, 255, 0], 3) && near(got[4].colour, [255, 255, 0], 2)
     && got[2].layers === 'scene,transition,effects' && got[4].layers === 'scene,effects', name, 'one scene changes to the next THROUGH the effects: the old picture and the new are mixed, then the effects are done to the mix, and they are shown over both', got)
+
+  // The same in 3D, by a slide: the old scene goes off to the left as the new one comes in from the right, all of
+  // it in the transition's own pixels, and so all of it through the effects.
+  got = await play(page, `const fxs = ${PIPE}
+invert()
+const renderer = new THREE.WebGLRenderer({ canvas })
+const camera = new THREE.PerspectiveCamera()
+class Red extends Scene {
+  setup() { this.world = new THREE.Scene(); this.world.background = new THREE.Color("rgb(255,0,0)") }
+  draw() { renderer.render(this.world, camera) }
+  onKeyDown() { go(Blue, { transition: "slide_left", seconds: 2 }) }
+}
+class Blue extends Scene {
+  setup() { this.world = new THREE.Scene(); this.world.background = new THREE.Color("rgb(0,0,255)") }
+  draw() { renderer.render(this.world, camera) }
+}
+window.read = () => new Promise((done) => fxs.onFrame((fx) => { fxs.onFrame(null); const p = fx.pixels(), at = (x) => { const i = (Math.floor(p.height / 2) * p.width + Math.floor(p.width * x)) * 4; return [p.data[i], p.data[i + 1], p.data[i + 2]] }; done({ left: at(0.25), right: at(0.75), layers: ${LAYERS}, moved: canvas.style.transform }) }))`, { until: 'window.scene.scenes?.name === "Red"', wait: 8000 })
+  if (!got.error) {
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+    got = [await page.evaluate(() => window.read())]
+    await page.evaluate(() => { for (const type of ['keydown', 'keyup']) window.scene.canvas.dispatchEvent(new KeyboardEvent(type, { key: 'a', code: 'KeyA', bubbles: true })) })
+    await page.waitForFunction(() => window.error || (window.scene.scenes?.name === 'Blue' && window.scene.transition), null, { timeout: 3000 }).catch(() => {})
+    for (const p of [0.5, 1]) {
+      await page.evaluate((p) => window.scene.transition?.hold(p), p)
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+      got.push(await page.evaluate(() => window.read()))
+    }
+    got.push(await page.evaluate(() => window.error))
+  }
+  say(Array.isArray(got) && !got[3] && near(got[0].left, [0, 255, 255], 3) && near(got[1].left, [0, 255, 255], 4) && near(got[1].right, [255, 255, 0], 4) && near(got[2].left, [255, 255, 0], 4)
+    && got[1].layers === 'scene,transition,effects' && !got[1].moved, name, 'a 3D scene slides to the next THROUGH the effects: half way, the old scene is on the left and the new on the right, both with the effects on them, and nothing is moved by a style', got)
 
   got = await play(page, `const fxs = ${PIPE}
 playNotes("C2 C2", 0.25)

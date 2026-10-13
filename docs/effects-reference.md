@@ -1561,15 +1561,15 @@ Also written `copper_bars`.
 A chequered floor rushing towards you under a glowing horizon.
 
 ```js
-checkerFloor("#ff2ad4")
+checkerFloor("#ff2a6d")
 ```
 
 Also written `checker_floor`.
 
 | Setting | Starts at | Can be |
 |---|---|---|
-| `colour` | `"#ff2ad4"` | any colour |
-| `dark` | `"#12103a"` | any colour |
+| `colour` | `"#ff2a6d"` | any colour |
+| `dark` | `"#101a3a"` | any colour |
 | `speed` | `1` | -10 to 10 |
 | `amount` | `1` | 0 to 1 |
 

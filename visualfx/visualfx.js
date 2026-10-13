@@ -7,7 +7,7 @@
  *   kaleidoscope(8)                         on, eight segments
  *   glow(0.8)                               bright things shine
  *   const trail = trails(0.5, { zoom: 1.5, spin: 20 })
- *   trail.spin = Math.sin(time) * 40        a setting is a plain property: change it any time
+ *   trail.spin = 40                         a setting is a plain property: change it any time
  *   glowing.strength = () => 0.3 + bass()   or give it a function, asked every frame
  *
  * EFFECTS APPLY IN THE ORDER THEY ARE TURNED ON, to everything the scene has drawn, 2D or 3D. Each has
@@ -939,7 +939,7 @@ vec3 backdrop(vec2 uv) {
   }
   return c;
 }`, { backdrop: true, rename: { size: 'big' } })
-define('checkerFloor', ['colour'], { colour: colour('#ff2ad4'), dark: colour('#12103a'), speed: num(1, -10, 10) }, `
+define('checkerFloor', ['colour'], { colour: colour('#ff2a6d'), dark: colour('#101a3a'), speed: num(1, -10, 10) }, `
 vec3 backdrop(vec2 uv) {
   float h = 0.42, d = uv.y - h;
   if (d <= 0.0) return mix(vec3(0.01, 0.0, 0.05), colour * 0.55, pow(uv.y / h, 5.0));
