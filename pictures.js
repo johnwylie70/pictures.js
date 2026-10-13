@@ -554,7 +554,10 @@ function handedNames(code) {
 function usesAny(code, names) {
   let handed = null
   for (const name of names) {
-    const both = name === snake(name) ? name : `(?:${name}|${snake(name)})`
+    // A name that is nowhere in the text is not used: most are not, and this is asked of every scene before it runs.
+    const other = snake(name)
+    if (!code.includes(name) && (other === name || !code.includes(other))) continue
+    const both = name === other ? name : `(?:${name}|${other})`
     const own = new RegExp(`\\b(?:function\\s*\\*?|class|const|let|var)\\s+${both}\\b|\\b(?:const|let|var)\\s*[{[][^=;]*[^.\\w$:]\\s*${both}\\s*[,}\\]=]`)
     if (own.test(code)) continue
     if (!/[A-Z]/.test(name)) {
