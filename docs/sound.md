@@ -538,7 +538,7 @@ const { left, right, sampleRate } = scene.sound.stepped.take()   // the samples 
 // ... now run the frame, and copy the canvas
 ```
 
-Sixty frames are 48000 samples: every frame is `sampleRate / fps` of them, with the remainder carried, so nothing drifts over a long film. `scene.sound` is the library's stepped player, and [its page for apps](https://github.com/johnwylie70/synths.js/blob/main/docs/commands.md) has the rest. If you would rather not write the loop, [visualfx.js](https://github.com/johnwylie70/visualfx.js) has it: `await recordVideo({ seconds: 20, fps: 60, sound: scene })` gives a WebM file with the sound in it.
+The clock is yours: `requestAnimationFrame` and `performance.now` are the ones your page gives the scene, each frame exactly `1 / fps` after the last however long it took to draw. A stepped scene has a sound player of its own, and is not paused when it is scrolled out of view. Sixty frames are 48000 samples: every frame is `sampleRate / fps` of them, with the remainder carried, so nothing drifts over a long film. `scene.sound` is the library's stepped player, and [its page for apps](https://github.com/johnwylie70/synths.js/blob/main/docs/commands.md) has the rest. If you would rather not write the loop, [visualfx.js](https://github.com/johnwylie70/visualfx.js) has it: `await recordVideo({ seconds: 20, fps: 60, sound: scene })` gives a WebM file with the sound in it.
 
 ## A sound button, and asking first
 

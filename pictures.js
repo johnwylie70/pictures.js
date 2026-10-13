@@ -774,13 +774,7 @@ const scenesWritten = (code) => [...code.matchAll(/\bclass\s+([A-Za-z_$][\w$]*)\
  *   and `worklet` how its audio worklet is loaded ('blob', from text already inside the library, needs no file). The rest are the
  *   player's own options (synths.js's createPlayer): `destination` is a node to play into (a recorder), `fallback: 'always'` makes
  *   the sound on the page's thread where an audio worklet will not load.
- *   `stepped` is for a host that records the scene as a video by moving the page's clock one frame at a time (requestAnimationFrame
- *   and performance.now are the host's, each frame exactly 1/fps after the last however long it took to draw): `{ fps: 60 }` says so
- *   and at what rate. The scene's sound is then made on that clock too, with no sound card, so it stays with the pictures to the
- *   sample and the scene's code is what it was: playSong, playNotes, beat(), soundTime() and a song's position all read the stepped
- *   clock. What is returned has the player as `sound`; the host says how far the clock has moved before each frame is drawn,
- *   `await scene.sound.stepped.advance(performance.now() / 1000)`, and takes the samples with `scene.sound.stepped.take()`
- *   (synths.js's createSteppedPlayer). A stepped scene is not paused when it is out of view. Nothing is heard while it is recorded.
+ *   `stepped` (`{ fps: 60 }`) is for a host that records the scene a frame at a time: docs/sound.md, "Recording a video with sound".
  *   `midi` is the MIDI devices themselves, for a host whose browser has no Web MIDI (an iPad app, with CoreMIDI behind it): a plain
  *   object of functions (synths.js's docs/midi.md, "The midi option"), used in place of the browser's own. `midi: false` switches MIDI
  *   off. Without it the browser's Web MIDI is asked the first time a scene uses MIDI, and where there is none the scene still runs
@@ -812,7 +806,7 @@ const scenesWritten = (code) => [...code.matchAll(/\bclass\s+([A-Za-z_$][\w$]*)\
  *             scenes: object | null, transition: object | null, ready: Promise<void> }}
  *   `ready` is a promise of the scene having run its top level and its setup(), which a recorder waits for before its first frame.
  *   `sound` is the page's sound player while a scene that uses sound runs (synths.js's: `state`, `context`, `node`; the scenes of
- *   a page share one), and null otherwise. A stepped scene has a player of its own, with `stepped` (see the option).
+ *   a page share one), and null otherwise.
  *   `scenes` is the file's scenes while a file that has them runs: `name` (the current one), `time`, `duration`, `sections`, `paused`,
  *   `seek(seconds)`, `pause(on)` and `go(name)`; null for a file with none. `transition` is the transition going on now, or null:
  *   `{ name, seconds, progress, from, to, hold(progress), release() }` (`from` is a canvas with the old scene's last picture, `to` the
