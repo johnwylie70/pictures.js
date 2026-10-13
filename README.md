@@ -303,6 +303,23 @@ function draw() {
 ```
 
 Change the notes in the line and both what you hear and what you see change. A tracker song can be written out a staff a channel and followed as it plays, a sheet can be written a note at a time (`makeSheet()`), and a learner can play along on a keyboard (`page.playAlong("wait")`, `keyboard(page)`). It is made by [notation.js](https://github.com/johnwylie70/notation.js), in the `notation` folder, and is loaded only by a scene that uses it. See [Sheet music](docs/sheet-music.md).
+## Effects
+
+A scene can have effects on it, done by the graphics card, with nothing to import:
+
+```js
+glow(1)                 // bright things shine
+trails(1.5)             // and leave a trail that takes a second and a half to fade
+
+function draw() {
+  background("black")
+  circle(mouse.x, mouse.y, 40, "gold")
+}
+```
+
+There are ninety-four: a kaleidoscope, blurs, an old television, glitches, rain and snow, backdrops such as `plasma()` and `fire()` that need no drawing at all, and `look("arcade")` for several at once. Their settings are plain properties (`tail.zoom = 2`), and `bass()`, `pulse()` and `react(…)` make them move to the scene's music. They are loaded only by a scene that calls one. See [Effects](docs/effects.md) and [every effect](docs/effects-reference.md), with a picture of each.
+
+[![Every effect, each on the same small scene](docs/images/effects.jpg)](docs/effects-reference.md)
 
 ## Scenes
 
@@ -373,7 +390,7 @@ Every one of these is also a [Pyctures example](https://github.com/johnwylie70/p
 
 ## Docs
 
-Start with [Getting started](docs/getting-started.md), then [how a program is shaped](docs/program-shape.md), [drawing in 2D](docs/drawing-2d.md), [3D scenes](docs/3d.md), [colours](docs/colours.md), [saved values](docs/saved-values.md), [files and databases](docs/files-and-databases.md), and [tips](docs/tips.md). The [2D functions](docs/2d-functions.md) and [3D functions](docs/3d-functions.md) pages list everything, one line each. The [function index](docs/function-index.md) names every function by area, with a link to where it is explained. Seven tutorials are in [docs/tutorials](docs/tutorials).
+Start with [Getting started](docs/getting-started.md), then [how a program is shaped](docs/program-shape.md), [drawing in 2D](docs/drawing-2d.md), [3D scenes](docs/3d.md), [colours](docs/colours.md), [effects](docs/effects.md), [saved values](docs/saved-values.md), [files and databases](docs/files-and-databases.md), and [tips](docs/tips.md). The [2D functions](docs/2d-functions.md) and [3D functions](docs/3d-functions.md) pages list everything, one line each. The [function index](docs/function-index.md) names every function by area, with a link to where it is explained. Seven tutorials are in [docs/tutorials](docs/tutorials).
 
 ## pictures.js in Circuitry Studio
 

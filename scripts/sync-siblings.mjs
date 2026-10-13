@@ -5,7 +5,8 @@
  *   sound/       synths.js, its MIDI (synths-midi.js), its audio worklet's file, the engine (synths_core.wasm) and its LICENSE, from ../synths.js
  *   dials/       dials.js (the on-screen controls) and its LICENSE, from ../dials.js
  *   notation/    notation.js (sheet music), its LICENSE and the licence of the music symbols' outlines (LICENSE-GLYPHS), from ../notation.js
- *   pictures.js  the lists between the SOUND_NAMES, DIAL_NAMES and NOTATION_NAMES marks: every function the vendored copy gives
+ *   visualfx/    visualfx.js (the effects) and its LICENSE, from ../visualfx.js
+ *   pictures.js  the lists between the SOUND_NAMES, DIAL_NAMES, NOTATION_NAMES and EFFECT_NAMES marks: every function the vendored copy gives
  *                a scene, read out of the copy itself, so a function a sibling gains is a scene's the next time this runs
  *
  *   node scripts/sync-siblings.mjs            copy both, as they were last committed there, and write the lists
@@ -31,6 +32,7 @@ const COPIES = [
   ['synths.js', 'sound', ['synths.js', 'synths-midi.js', 'synths-worklet.js', 'synths_core.wasm', 'LICENSE']],
   ['dials.js', 'dials', ['dials.js', 'LICENSE']],
   ['notation.js', 'notation', ['notation.js', 'LICENSE', 'LICENSE-GLYPHS']],
+  ['visualfx.js', 'visualfx', ['visualfx.js', 'LICENSE']],
 ]
 // What createSound() has that is the host's to call, not a scene's.
 const HOSTS_OWN = new Set(['flush', 'close', 'player', 'pause', 'resume', 'settled', 'useMidiHooks', 'receiveSoundEvents'])
@@ -38,6 +40,8 @@ const HOSTS_OWN = new Set(['flush', 'close', 'player', 'pause', 'resume', 'settl
 const SOUND_EXTRA = ['noteNumber']
 // What the dials module exports that is not a control.
 const NOT_CONTROLS = new Set(['dials', 'version', 'default'])
+// What the effects module exports that is a host's (the effects of one canvas), not a scene's.
+const NOT_EFFECTS = new Set(['effects', 'version', 'default'])
 
 let out = 0
 const working = process.argv.includes('--working')
@@ -74,10 +78,14 @@ const made = sound.createSound({ sound: { send() {} } })
 const soundNames = [...Object.keys(made).filter((n) => typeof made[n] === 'function' && camel(n) && !HOSTS_OWN.has(n)), ...SOUND_EXTRA.filter((n) => typeof sound[n] === 'function')]
 const controls = await import(pathToFileURL(join(ROOT, 'dials', 'dials.js')).href)
 const controlNames = Object.keys(controls).filter((n) => typeof controls[n] === 'function' && camel(n) && !NOT_CONTROLS.has(n))
+const fx = await import(pathToFileURL(join(ROOT, 'visualfx', 'visualfx.js')).href)
+const effectNames = Object.keys(fx).filter((n) => typeof fx[n] === 'function' && camel(n) && !NOT_EFFECTS.has(n))
 
 // The names pictures.js gives already: GIVEN's, and the functions a scene may define.
 const given = new Set(JSON.parse(text.match(/\nconst GIVEN = (\[[^\]]*\])/)[1].replace(/'/g, '"')))
 for (const m of text.match(/\nconst HOOKS = \{[\s\S]*?\n\}/)[0].matchAll(/'(\w+)'/g)) given.add(m[1])
+// A file with scenes has these too (SCENE_NAMES, and what it is told of where it is).
+for (const n of [...JSON.parse(text.match(/\nconst SCENE_NAMES = (\[[^\]]*\])/)[1].replace(/'/g, '"')), 'sceneTime', 'sceneProgress', 'sceneName']) given.add(n)
 const free = (names, what) => names.filter((n) => {
   const taken = given.has(n) || ['width', 'height', 'pixelRatio'].includes(n)
   if (taken) console.log(`${what}'s "${n}" is left out: a scene already has a ${n} of pictures.js's own`)
@@ -91,9 +99,13 @@ const sheetTaken = sheets.sceneNames.filter((n) => soundNames.includes(n) || con
 for (const n of sheetTaken) console.log(`sheet music's "${n}" is left out: the ${soundNames.includes(n) ? 'sound' : 'controls'} have a ${n}`)
 const sheetNames = sheets.sceneNames.filter((n) => typeof sheets[n] === 'function' && !sheetTaken.includes(n))
 
+// An effect whose name the sound or the controls have is left out, and said: the effects are the newest of the three.
+const taken = effectNames.filter((n) => soundNames.includes(n) || controlNames.includes(n))
+for (const n of taken) console.log(`effects' "${n}" is left out: the ${soundNames.includes(n) ? 'sound' : 'controls'} have a ${n}`)
+
 const list = (name, names) => `/* ${name}:BEGIN */\nconst ${name} = ${JSON.stringify(names).replace(/"/g, "'").replace(/,/g, ', ')}\n/* ${name}:END */`
 let next = text
-for (const [name, names] of [['SOUND_NAMES', free(soundNames, 'sound')], ['DIAL_NAMES', free(controlNames.filter((n) => !clash.includes(n)), 'dials')], ['NOTATION_NAMES', free(sheetNames, 'sheet music')]]) {
+for (const [name, names] of [['SOUND_NAMES', free(soundNames, 'sound')], ['DIAL_NAMES', free(controlNames.filter((n) => !clash.includes(n)), 'dials')], ['NOTATION_NAMES', free(sheetNames, 'sheet music')], ['EFFECT_NAMES', free(effectNames.filter((n) => !taken.includes(n)), 'effects')]]) {
   const marks = new RegExp(`/\\* ${name}:BEGIN \\*/[\\s\\S]*?/\\* ${name}:END \\*/`)
   if (!marks.test(next)) { console.error(`pictures.js has no ${name} marks to write between`); process.exit(1) }
   next = next.replace(marks, () => list(name, names))
@@ -105,6 +117,6 @@ if (next !== text) {
 }
 
 const size = async (folder, files) => (await Promise.all(files.map((f) => stat(join(ROOT, folder, f))))).reduce((sum, s) => sum + s.size, 0)
-for (const [, folder, files] of COPIES) console.log(`${folder}/ is ${Math.round(await size(folder, files) / 1024)} kB (${folder === 'sound' ? `synths.js ${sound.version}` : folder === 'notation' ? `notation.js ${sheets.version}` : `dials.js ${controls.version}`})`)
+for (const [, folder, files] of COPIES) console.log(`${folder}/ is ${Math.round(await size(folder, files) / 1024)} kB (${folder === 'sound' ? `synths.js ${sound.version}` : folder === 'notation' ? `notation.js ${sheets.version}` : folder === 'visualfx' ? `visualfx.js ${fx.version}` : `dials.js ${controls.version}`})`)
 if (check && out) { console.log(`${out} out of step: run node scripts/sync-siblings.mjs`); process.exit(1) }
 console.log(check ? 'In step.' : 'Done.')
