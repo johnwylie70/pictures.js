@@ -16,6 +16,7 @@ import { dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { HOOK, playSpaceRocks } from './play-space-rocks.mjs'
+import { quietly } from './quiet.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const from = process.env.PLAYWRIGHT || 'playwright'
@@ -148,7 +149,7 @@ const say = (ok, engine, what, got) => {
 }
 for (const name of ['chromium', 'webkit']) {
   let browser
-  try { browser = await playwright[name].launch() } catch { console.log(`${name}: not installed, skipped`); continue }
+  try { browser = await quietly(playwright[name], name) } catch { console.log(`${name}: not installed, skipped`); continue }
   const page = await browser.newPage()
   for (const { what, source, want } of CASES) {
     await page.goto(`${at}/test.html`)

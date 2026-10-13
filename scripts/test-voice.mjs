@@ -22,6 +22,7 @@ import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { quietly } from './quiet.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const from = process.env.PLAYWRIGHT || 'playwright'
@@ -281,7 +282,7 @@ async function letWorkletsRun(page) {
 const ALLOWED = { chromium: { args: ['--autoplay-policy=no-user-gesture-required'] }, webkit: {} }
 for (const name of ['chromium', 'webkit']) {
   let browser
-  try { browser = await playwright[name].launch(ALLOWED[name]) } catch { console.log(`${name}: not installed, skipped`); continue }
+  try { browser = await quietly(playwright[name], name, ALLOWED[name]) } catch { console.log(`${name}: not installed, skipped`); continue }
   const context = await browser.newContext({ viewport: { width: 800, height: 600 }, acceptDownloads: true })
   await context.addInitScript(PRETEND)
   const page = await context.newPage()
@@ -491,7 +492,7 @@ for (const name of ['chromium', 'webkit']) {
 
   // --- the first moments, with a sound card that is silent until the page is touched: the microphone is asked for
   // at once, the sound still waits for a tap and says so, and neither holds the other up.
-  browser = await playwright[name].launch(ALLOWED[name])
+  browser = await quietly(playwright[name], name, ALLOWED[name])
   const quiet = await browser.newContext({ viewport: { width: 800, height: 600 } })
   await quiet.addInitScript(PRETEND)
   const first = await quiet.newPage()

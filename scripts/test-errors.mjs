@@ -13,6 +13,7 @@ import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { quietly } from './quiet.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const from = process.env.PLAYWRIGHT || 'playwright'
@@ -64,7 +65,7 @@ const at = `http://localhost:${server.address().port}`
 let failed = 0
 for (const name of ['chromium', 'webkit']) {
   let browser
-  try { browser = await playwright[name].launch() } catch { console.log(`${name}: not installed, skipped`); continue }
+  try { browser = await quietly(playwright[name], name) } catch { console.log(`${name}: not installed, skipped`); continue }
   const page = await browser.newPage()
   for (const { what, source, line, says, never, key, guard } of CASES) {
     await page.goto(`${at}/test.html`)

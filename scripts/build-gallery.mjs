@@ -18,6 +18,7 @@ import { existsSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { quietly } from './quiet.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const EXAMPLES = join(ROOT, 'examples')
@@ -171,7 +172,7 @@ async function shots() {
   const { chromium } = await import(from.startsWith('/') ? pathToFileURL(join(from, 'index.mjs')).href : from)
   const server = await serve(SITE)
   const at = `http://localhost:${server.address().port}`
-  const browser = await chromium.launch()
+  const browser = await quietly(chromium, 'chromium')
   const page = await browser.newPage({ viewport: { width: 1120, height: 900 }, deviceScaleFactor: 2 })
   const take = async (file, out) => {
     await page.goto(`${at}/${file.replace(/\.js$/, '.html')}`)
@@ -207,7 +208,7 @@ async function gif(seconds = 3, fps = 15) {
   const frames = await mkdtemp(join(tmpdir(), 'pictures-gif-'))
   const server = await serve(SITE)
   const at = `http://localhost:${server.address().port}`
-  const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+  const browser = await quietly(chromium, 'chromium', { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
   let n = 0
   for (const file of GIF_SCENES) {
     const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })

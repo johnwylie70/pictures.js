@@ -21,6 +21,7 @@ import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { quietly } from './quiet.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const from = process.env.PLAYWRIGHT || 'playwright'
@@ -156,7 +157,7 @@ async function letWorkletsRun(page) {
 
 for (const name of ['chromium', 'webkit']) {
   let browser
-  try { browser = await playwright[name].launch() } catch { console.log(`${name}: not installed, skipped`); continue }
+  try { browser = await quietly(playwright[name], name) } catch { console.log(`${name}: not installed, skipped`); continue }
   const context = await browser.newContext({ viewport: { width: 800, height: 600 } })
   await context.addInitScript(LISTEN)
   const page = await context.newPage()
