@@ -1476,10 +1476,21 @@ class Page {
   /** The time on the sound's clock, or the page's own when no sound was given. */
   clock() { const ask = method(this.sound, 'soundTime', 'sound_time'); return ask ? ask() : nowSeconds() }
   /**
-   * How long after the time it was asked for a note is heard: the sound library plays everything 0.04 seconds
-   * late, so that it can place it exactly. The line keeps to what is heard. A sound may say its own (`latency`).
+   * How long after the time it was asked for a note is heard: the sound library plays everything a little late
+   * (0.04 seconds, unless its player says otherwise), so that it can place it exactly, and the line keeps to what
+   * is heard. A player says with `buffer().delay`, in milliseconds: one that a video recorder steps a frame at a
+   * time says 0, so in a film a note lights on the frame it sounds in. A sound may say its own (`latency`).
    */
-  get latency() { const sound = this.sound; return this.options.latency ?? (sound && typeof sound.latency === 'number' ? sound.latency : method(sound, 'soundTime', 'sound_time') ? 0.04 : 0) }
+  get latency() {
+    const sound = this.sound
+    if (this.options.latency !== undefined) return this.options.latency
+    if (!sound) return 0
+    if (typeof sound.latency === 'number') return sound.latency
+    const player = sound.player || (method(sound, 'soundPlayer', 'sound_player') || (() => null))()
+    const told = player && typeof player.buffer === 'function' ? player.buffer() : null
+    if (told && typeof told.delay === 'number') return told.delay / 1000
+    return method(sound, 'soundTime', 'sound_time') ? 0.04 : 0
+  }
   /**
    * Play the music through the sound that was given (useSound), and follow it: page.play(), page.play({ from: 8 })
    * to start eight beats in, { tempo: 90 } to play it slower, { repeat: true }. With no sound, the line moves in silence.
@@ -1549,16 +1560,31 @@ class Page {
     if (!score) return
     this.stage.sync(o.now)
     const theirs = method(this.sound, 'soundTime', 'sound_time')
-    const bpm = o.bpm || score.tempo, from = (o.from || 0) * TICKS, late = o.latency ?? 0.04
+    const bpm = o.bpm || score.tempo, from = (o.from || 0) * TICKS, late = o.latency ?? (this.sound ? this.latency : 0.04)
     this.playing = true
     this.source = () => {
-      const t = ((theirs ? theirs() : nowSeconds() - this.stage.offset) - late - o.at) * bpm / 60 + from / TICKS
+      // (The host's clock as the page's sound reckons it, when it does; else as this page has, from what the host has sent.)
+      const now = theirs ? theirs() : null
+      const t = ((typeof now === 'number' ? now : nowSeconds() - this.stage.offset) - late - o.at) * bpm / 60 + from / TICKS
       if (t * TICKS >= score.length) { this.finish(); return null }
       return t * TICKS < from ? null : t
     }
   }
+  /**
+   * For a host whose song plays in this page: follow the page's own sound, where it can say the song's place
+   * (`songPosition()`), and tell the host so ("direct"), which then need hand nothing on. A tapped bar is told to the host.
+   */
+  followSound() {
+    const ask = method(this.sound, 'songPosition', 'song_position')
+    if (!ask) return
+    this.feeding = true
+    this.direct = true
+    this.follow({ get position() { return ask() } })
+    this.stage.tell(this.id, 'direct', 1)
+  }
   /** For a host that reads the song's place itself: where the song is now, as song.position gives it. */
   feed(position) {
+    if (this.direct) return
     this.fed = position
     if (!this.feeding) { this.feeding = true; this.follow({ get position() { return this.page.fed }, page: this }) }
   }
@@ -2078,7 +2104,7 @@ function api(stage) {
     },
     /**
      * What happened is handed over once a frame: { t: JSON text of a flat list of page id, what, details… }. `what` is "note",
-     * "bar", "tap", "right", "wrong", "result", "done", "words", "seek" or "again".
+     * "bar", "tap", "right", "wrong", "result", "done", "words", "seek", "again" or "direct".
      */
     listen: (fn) => { stage.listener = fn },
     /** A host that must look at something every frame is called every frame instead, once it has answered the last call with ack(). */

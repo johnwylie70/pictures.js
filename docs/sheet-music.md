@@ -45,6 +45,7 @@ showNotes(sheet)
 
 function draw() {
   background("#102030")
+  text("A waltz has three beats in a bar", width / 2, height - 30, "white", 18, "centre")
 }
 ```
 
@@ -71,6 +72,7 @@ function update(dt) {
 function draw() {
   background("midnightblue")
   for (const s of stars) star(s.x, s.y, s.size, 5, "gold")
+  text("Click to play, and again to stop", width / 2, height - 30, "white", 18, "centre")
 }
 ```
 
