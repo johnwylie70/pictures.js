@@ -225,6 +225,80 @@ setTimeout(async () => { for (let i = 0; i < 5; i++) await frame(); const b = ca
   say(programs.length >= 6 && broken.length === 0, name, `the ${programs.length} programs on the Sheet music page of the docs each run and draw their music`, broken)
 
   say(errors.length === 0, name, 'no case left an error on its page', errors)
+
+  // --- RECORDED A FRAME AT A TIME (runScene's `stepped`): the note lit in each frame is the note in that frame's samples.
+  // The clock is moved as a recorder moves it, 48 frames a second; the tune is on a plain sine, so the note in a
+  // stretch of samples can be told by which of the tune's pitches it is. A note is 12 frames long and begins
+  // between two frames, so no frame falls on a join.
+  if ((await readFile(join(ROOT, 'sound', 'synths.js'), 'utf8')).includes('createSteppedPlayer')) {
+    const film = () => page.evaluate(async ({ source, fps, frames }) => {
+      let clock = 0, waiting = []
+      const real = { raf: window.requestAnimationFrame, caf: window.cancelAnimationFrame, now: performance.now }
+      window.requestAnimationFrame = (fn) => { waiting.push(fn); return waiting.length }
+      window.cancelAnimationFrame = () => {}
+      performance.now = () => clock
+      const { runScene } = await import('/pictures.js')
+      window.scene?.stop()
+      document.getElementById('s').replaceChildren()
+      const errors = []
+      const scene = runScene(document.getElementById('s'), { source, name: 'film.js', midi: false, stepped: { fps }, onError: (m) => errors.push(m) })
+      await scene.ready
+      const player = scene.sound, lit = [], line = [], parts = []
+      for (let f = 0; f < frames; f++) {
+        clock = f * 1000 / fps
+        await player.stepped.advance(clock / 1000)
+        parts.push(player.stepped.take())
+        for (const fn of waiting.splice(0)) fn(clock)
+        const sheet = scene.canvas[Symbol.for('notation.stage')]?.pages[0]
+        lit.push(sheet ? [...sheet.sounding] : null)
+        line.push(sheet && sheet.cursor.style.display === 'block' ? parseFloat(sheet.cursor.style.left) : null)
+        await new Promise((done) => setTimeout(done, 0))
+      }
+      await player.stepped.advance(frames / fps)
+      parts.push(player.stepped.take())
+      // The samples that follow each frame's moment (parts[f + 1]), and which of the tune's pitches is in their first 8 ms.
+      const pitches = { 60: 261.63, 67: 392, 72: 523.25, 76: 659.25, 81: 880 }, rate = player.stepped.sampleRate
+      const heard = []
+      let sum = 0
+      for (let f = 0; f < frames; f++) {
+        const x = parts[f + 1].left, n = Math.round(rate * 0.008)
+        let best = null, most = 0
+        for (const [note, hz] of Object.entries(pitches)) {
+          let re = 0, im = 0
+          for (let i = 0; i < n; i++) { re += x[i] * Math.cos(2 * Math.PI * hz * i / rate); im += x[i] * Math.sin(2 * Math.PI * hz * i / rate) }
+          const power = (re * re + im * im) / (n * n)
+          if (power > most) { most = power; best = +note }
+        }
+        heard.push(most > 1e-3 ? best : null)
+        for (let i = 0; i < x.length; i += 7) sum = (sum * 31 + Math.round(x[i] * 1e6)) | 0
+      }
+      const kind = player.kind, delay = player.buffer().delay
+      scene.stop()
+      Object.assign(window, { requestAnimationFrame: real.raf, cancelAnimationFrame: real.caf })
+      performance.now = real.now
+      return { lit, heard, line, sum, kind, delay, errors }
+    }, { fps: 48, frames: 96, source: `const sine = makeSynth({ wave: "sine", filter: "off", attack: 0, decay: 0, sustain: 1, release: 0, volume: 1 })
+const page = showNotes("C4 G4 C5 - E5 A5", "eighth", { tempo: 120, synth: sine })
+page.play()
+function draw() { background("navy") }
+` })
+    await page.goto(`${at}/test.html`)
+    const one = await film()
+    await page.goto(`${at}/test.html`)
+    const two = await film()
+    const frames = one.lit.map((l, f) => ({ f, lit: l && l.length ? l[0] : null, heard: one.heard[f] }))
+    // Every frame with a note in its samples has that note lit; a frame with nothing lit is silent. (A note is let go at
+    // 94% of its length, so the last frame of a lit note may be silent already: that is the only difference there is.)
+    const wrong = frames.filter((x) => (x.heard !== null && x.heard !== x.lit) || (x.lit === null && x.heard !== null))
+    const tails = frames.filter((x) => x.lit !== null && x.heard === null).length
+    const order = frames.map((x) => x.lit).filter((n, i, all) => n !== null && n !== all[i - 1])
+    const moved = one.line.filter((x) => x !== null)
+    say(one.kind === 'stepped' && one.delay === 0 && !one.errors.length && wrong.length === 0 && String(order) === '60,67,72,76,81' && frames.filter((x) => x.heard !== null).length >= 50 && tails <= 5, name,
+      `recorded a frame at a time, the note lit in every frame is the note in that frame's samples (${frames.filter((x) => x.heard !== null).length} frames with sound, none wrong; ${tails} where a note is still lit in the moment after it is let go)`, { wrong: wrong.slice(0, 6), order, tails, kind: one.kind, delay: one.delay, errors: one.errors })
+    say(moved.length > 50 && moved.every((x, i) => i === 0 || x >= moved[i - 1]) && moved[moved.length - 1] - moved[0] > 100, name, 'and the line moves on with every frame', moved.slice(0, 8))
+    say(JSON.stringify(one.lit) === JSON.stringify(two.lit) && JSON.stringify(one.line) === JSON.stringify(two.line) && one.sum === two.sum, name, 'two recordings of the same scene are the same: the same notes lit in the same frames, the line in the same places, the same samples', { sums: [one.sum, two.sum] })
+  } else console.log(`     ${name}: the synths.js in sound/ has no stepped player, so a recording is not tested`)
+
   await browser.close()
 }
 server.close()
