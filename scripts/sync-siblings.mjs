@@ -3,8 +3,8 @@
  * Brings the two sibling libraries into this package, and keeps the names a scene is given in step with them:
  *
  *   sound/       synths.js, its audio worklet's file, the engine (synths_core.wasm) and its LICENSE, from ../synths.js
- *   controls/    controls.js and its LICENSE, from ../controls.js
- *   pictures.js  the lists between the SOUND_NAMES and CONTROL_NAMES marks: every function the vendored copy gives
+ *   dials/       dials.js (the on-screen controls) and its LICENSE, from ../dials.js
+ *   pictures.js  the lists between the SOUND_NAMES and DIAL_NAMES marks: every function the vendored copy gives
  *                a scene, read out of the copy itself, so a function a sibling gains is a scene's the next time this runs
  *
  *   node scripts/sync-siblings.mjs            copy both, as they were last committed there, and write the lists
@@ -28,14 +28,14 @@ const keep = check || process.argv.includes('--keep')
 // What is copied: [the sibling's folder, the folder here, its files].
 const COPIES = [
   ['synths.js', 'sound', ['synths.js', 'synths-worklet.js', 'synths_core.wasm', 'LICENSE']],
-  ['controls.js', 'controls', ['controls.js', 'LICENSE']],
+  ['dials.js', 'dials', ['dials.js', 'LICENSE']],
 ]
 // What createSound() has that is the host's to call, not a scene's.
-const HOSTS_OWN = new Set(['flush', 'close', 'player'])
+const HOSTS_OWN = new Set(['flush', 'close', 'player', 'pause', 'resume'])
 // What the sound module exports that a scene is given as well as createSound()'s functions.
 const SOUND_EXTRA = ['noteNumber']
-// What the controls module exports that is not a control.
-const NOT_CONTROLS = new Set(['controls', 'version', 'default'])
+// What the dials module exports that is not a control.
+const NOT_CONTROLS = new Set(['dials', 'version', 'default'])
 
 let out = 0
 const working = process.argv.includes('--working')
@@ -70,7 +70,7 @@ const camel = (name) => !/_/.test(name)
 const sound = await import(pathToFileURL(join(ROOT, 'sound', 'synths.js')).href)
 const made = sound.createSound({ sound: { send() {} } })
 const soundNames = [...Object.keys(made).filter((n) => typeof made[n] === 'function' && camel(n) && !HOSTS_OWN.has(n)), ...SOUND_EXTRA.filter((n) => typeof sound[n] === 'function')]
-const controls = await import(pathToFileURL(join(ROOT, 'controls', 'controls.js')).href)
+const controls = await import(pathToFileURL(join(ROOT, 'dials', 'dials.js')).href)
 const controlNames = Object.keys(controls).filter((n) => typeof controls[n] === 'function' && camel(n) && !NOT_CONTROLS.has(n))
 
 // The names pictures.js gives already: GIVEN's, and the functions a scene may define.
@@ -86,7 +86,7 @@ if (clash.length) console.log(`Both siblings have ${clash.join(', ')}: a scene i
 
 const list = (name, names) => `/* ${name}:BEGIN */\nconst ${name} = ${JSON.stringify(names).replace(/"/g, "'").replace(/,/g, ', ')}\n/* ${name}:END */`
 let next = text
-for (const [name, names] of [['SOUND_NAMES', free(soundNames, 'sound')], ['CONTROL_NAMES', free(controlNames.filter((n) => !clash.includes(n)), 'controls')]]) {
+for (const [name, names] of [['SOUND_NAMES', free(soundNames, 'sound')], ['DIAL_NAMES', free(controlNames.filter((n) => !clash.includes(n)), 'dials')]]) {
   const marks = new RegExp(`/\\* ${name}:BEGIN \\*/[\\s\\S]*?/\\* ${name}:END \\*/`)
   if (!marks.test(next)) { console.error(`pictures.js has no ${name} marks to write between`); process.exit(1) }
   next = next.replace(marks, () => list(name, names))
@@ -98,6 +98,6 @@ if (next !== text) {
 }
 
 const size = async (folder, files) => (await Promise.all(files.map((f) => stat(join(ROOT, folder, f))))).reduce((sum, s) => sum + s.size, 0)
-for (const [, folder, files] of COPIES) console.log(`${folder}/ is ${Math.round(await size(folder, files) / 1024)} kB (${sound.version && folder === 'sound' ? `synths.js ${sound.version}` : `controls.js ${controls.version}`})`)
+for (const [, folder, files] of COPIES) console.log(`${folder}/ is ${Math.round(await size(folder, files) / 1024)} kB (${sound.version && folder === 'sound' ? `synths.js ${sound.version}` : `dials.js ${controls.version}`})`)
 if (check && out) { console.log(`${out} out of step: run node scripts/sync-siblings.mjs`); process.exit(1) }
 console.log(check ? 'In step.' : 'Done.')

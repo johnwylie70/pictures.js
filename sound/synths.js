@@ -15,9 +15,9 @@
  *   lead.arp("Cm7"), playArp("C4", "minor")   a chord from one voice, as a fast arpeggio (a C64 chord); startArp stays, and changes chord
  *   lead.play("Cm7")                       a chord by name plays all its notes
  *   lead.macro = [{ wave: "noise" }, …]    a step macro: chip drums and moving pulse widths
- *   lead.samples(), .level(), .notes()     what it is doing now, for a scope, a meter and lit keys (controls.js uses these)
+ *   lead.samples(), .level(), .notes()     what it is doing now, for a scope, a meter and lit keys (dials.js uses these)
  *   const drum = loadSample("kick.wav")    a recorded sound from a file; drum.play(), drum.play("E4") at another pitch
- *   playSong("tune.mod")                   a tracker song (not ready yet in this version)
+ *   const song = playSong("tune.mod")      a whole song from a file (.mod, .xm, or our own .json): song.pause(), .seek(2), .volume, .position
  *   setVolume(0.5), muteSound(), unmuteSound(), stopSound()
  *   setEffects({ echoTime: 0.3, reverbSize: 0.8 })
  *   setTempo(120), beats(2)                beats(2) is how many seconds two beats last
@@ -53,6 +53,8 @@ const BASE = (() => {
 })()
 /** The engine's parts that synths are given. The rest (32 to 63) are a tracker song's, one for each channel. */
 const SYNTH_PARTS = 32
+/** The sample slots loadSample is given. A song's samples go in the slots from here on. */
+const SAMPLE_SLOTS = 512
 /** The version of the command format: `synths` in every batch. */
 const COMMANDS = 1
 
@@ -586,7 +588,7 @@ function makeCore(wasm, sampleRate, post) {
   const eventsAt = x.synths_event_buffer(engine)
   const eventRoom = x.synths_event_capacity()
   const outRoom = x.synths_output_capacity()
-  const NOTE_ON = 1, NOTE_OFF = 2, ALL_OFF = 3, EVERY = 0xffff
+  const NOTE_ON = 1, NOTE_OFF = 2, ALL_OFF = 3, SONG = 15, EVERY = 0xffff
 
   /** Events not yet handed to the engine: [frame, type, part, a, x, y, z, b], soonest first. */
   const queue = []
@@ -607,6 +609,7 @@ function makeCore(wasm, sampleRate, post) {
     exec,
     render,
     taps,
+    songPosition,
     close() { x.synths_destroy(engine) },
   }
 
@@ -649,7 +652,9 @@ function makeCore(wasm, sampleRate, post) {
         for (let i = queue.length - 1; i >= 0; i--) if (queue[i][1] === NOTE_ON) queue.splice(i, 1)
         tunes.clear()
         add(core.time, ALL_OFF, EVERY, 1, 0, 0)
-      } else if (kind === 'song') post({ type: 'unsupported', what: 'song' })
+        if (songLoaded) add(core.time, SONG, 0, 0, 0, 0)
+      } else if (kind === 'songLoad') loadSong(op)
+      else if (kind === 'songUnload') { if (x.synths_song_unload) x.synths_song_unload(engine); songLoaded = false }
     }
   }
 
@@ -662,6 +667,57 @@ function makeCore(wasm, sampleRate, post) {
     const ok = x.synths_sample_load(engine, slot, at, frames, channels, rate)
     x.synths_free(at)
     if (ok === 0) x.synths_sample_config(engine, slot, base, loopMode, loopStart, loopEnd || frames)
+  }
+
+  // A SONG. [, token, the song file's bytes, [[a sample file's name as bytes, its bytes], …], first part, first slot].
+  // The engine reads the file (a MOD, an XM or one of its own JSON songs) and from then on plays it by itself,
+  // steered by `song` events. The page is told how it went, with what it needs to set up the song's synth patches:
+  // text is sent as bytes, because this thread may have nothing to turn bytes into text with.
+  let songLoaded = false
+  function put(bytes) {
+    const at = x.synths_alloc(Math.max(1, bytes.length))
+    if (at) new Uint8Array(memory.buffer, at, bytes.length).set(bytes)
+    return at
+  }
+  function loadSong([, token, bytes, files, firstPart, firstSlot]) {
+    if (!x.synths_song_load) return post({ type: 'song', token, result: -100 })
+    for (const [name, data] of files || []) {
+      const nameAt = put(name), dataAt = put(data)
+      if (nameAt && dataAt) x.synths_song_file(nameAt, name.length, dataAt, data.length)
+      x.synths_free(nameAt)
+      x.synths_free(dataAt)
+    }
+    const at = put(bytes)
+    const result = at ? x.synths_song_load(engine, at, bytes.length, firstPart, firstSlot) : -1
+    x.synths_free(at)
+    songLoaded = result === 0
+    const said = { type: 'song', token, result, error: null, info: [], patches: [] }
+    if (result !== 0) {
+      const from = x.synths_song_error()
+      const all = new Uint8Array(memory.buffer)
+      let end = from
+      while (from && all[end]) end++
+      said.error = all.slice(from, end)
+    } else {
+      const room = x.synths_alloc(256)
+      x.synths_song_info(engine, room)
+      said.info = Array.from(new Uint32Array(memory.buffer, room, 8))
+      for (let i = 1; i <= said.info[3]; i++) {
+        const n = Math.min(256, x.synths_song_patch_name(engine, i, room, 256))
+        if (n) said.patches.push([i, new Uint8Array(memory.buffer, room, n).slice()])
+      }
+      x.synths_free(room)
+    }
+    post(said)
+  }
+  /** Where the song is, ten numbers (see the engine's document), or null with an engine that plays no songs. */
+  let positionAt = 0
+  function songPosition() {
+    if (!x.synths_song_position) return null
+    if (!positionAt) positionAt = x.synths_alloc(40)
+    if (!positionAt) return null
+    x.synths_song_position(engine, positionAt)
+    return Array.from(new Uint32Array(memory.buffer, positionAt, 10))
   }
 
   // A part's step macro: [, part, the steps' numbers (five a step), count, loop start, loop end, release, flags].
@@ -791,6 +847,7 @@ function registerSynths(makeCore) {
           core.exec(m.data.ops)
         }
         if (m.data.watch) {
+          this.watchSong = !!m.data.song
           this.watch = m.data.watch
           this.watchFor = Math.ceil(sampleRate * 1.5 / 128)
         }
@@ -813,7 +870,7 @@ function registerSynths(makeCore) {
       core.render(out[0], out[1], out[0].length)
       if (this.watch && (++this.blocks & 7) === 0) {
         if ((this.watchFor -= 8) <= 0) this.watch = null
-        else this.port.postMessage({ type: 'taps', taps: core.taps(this.watch, 1024) })
+        else this.port.postMessage({ type: 'taps', taps: core.taps(this.watch, 1024), song: this.watchSong ? core.songPosition() : null })
       }
       return true
     }
@@ -832,9 +889,10 @@ export const workletSource = `// synths.js: the audio worklet. Made from synths.
  * player and the offline one, which is why they sound the same.
  *
  * @param post   given the ops for the core: post(ops, transfer)
- * @param load   reads and decodes a sample: load({ url, bytes }) -> Promise<{ pcm, channels, rate }>
+ * @param load     reads and decodes a sample: load({ url, bytes }) -> Promise<{ pcm, channels, rate }>
+ * @param bytesOf  reads a file as it is: bytesOf({ url, bytes }) -> Promise<bytes>
  */
-function makeConductor(post, load) {
+function makeConductor(post, load, bytesOf) {
   const params = allSettings()
   const partParams = PARAMS.filter((p) => p[0] < 200)
   const id = (name) => params.get(key(name)).id
@@ -851,13 +909,50 @@ function makeConductor(post, load) {
   let nextSlot = 0
   let uses = 0
   let handle = 0x80000000
-  let volume = 1, muted = false
+  let volume = 1, muted = false, paused = false
   let ops = []
   let transfer = []
   /** Samples still being read: the offline player waits for these before it renders. */
   const loading = new Set()
 
   const event = (at, type, part, a, x, y, z, b) => ops.push(['e', at, type, part, a >>> 0, x, y || 0, z || 0, b || 0])
+
+  /**
+   * SCOPES. Several senders can share one player without knowing of each other (the scenes on one page): each
+   * names a scope on its batches. A scope has its own ids, its own volume, mute and pause, and "stop everything"
+   * stops only what is its own. The scope with no name is the player itself: its volume is the volume of all.
+   * A scope's volume is made by turning each of its synths' parts down, since the engine has one master volume.
+   */
+  const scopes = new Map()
+  let scope = null
+  let prefix = ''
+  const VOLUME = id('volume')
+  function enter(name) {
+    name = name || ''
+    prefix = name ? name + '\u0001' : ''
+    scope = scopes.get(name)
+    if (!scope) scopes.set(name, scope = { name, gain: 1, muted: false, paused: false, synths: new Set(), samples: new Set(), tunes: new Set() })
+  }
+  const heard = (sc) => (sc.name === '' ? 1 : sc.muted || sc.paused ? 0 : sc.gain)
+  // What a part is really set to for a synth's setting: its volume is turned by its scope's.
+  const real = (rec, pid, value) => (pid === VOLUME ? clamp(value * heard(rec.scope), 0, 2) : value)
+  function record(sid, patch, note, macro) {
+    const rec = { patch, part: -1, used: 0, note, macro, scope }
+    synths.set(sid, rec)
+    scope.synths.add(sid)
+    return rec
+  }
+  const slotFor = (sample) => slotOf(prefix + sample)
+  // A scope's volume has changed: turn its parts.
+  function turn(sc, at) {
+    for (const sid of sc.synths) {
+      const rec = synths.get(sid)
+      if (!rec || rec.part < 0) continue
+      const want = real(rec, VOLUME, rec.patch.has(VOLUME) ? rec.patch.get(VOLUME) : 1)
+      parts[rec.part].values.set(VOLUME, want)
+      event(at, PARAM, rec.part, VOLUME, want, 0.02)
+    }
+  }
 
   // Give the note with a handle an arpeggio (or change the one it has, or with no offsets take it away): the
   // engine steps one voice through the offsets, in semitones, so many times a second.
@@ -874,10 +969,10 @@ function makeConductor(post, load) {
   function slotOf(sample) {
     let slot = slots.get(sample)
     if (slot === undefined) {
-      slot = freeSlots.length ? freeSlots.pop() : nextSlot < ENGINE.samples ? nextSlot++ : -1
+      slot = freeSlots.length ? freeSlots.pop() : nextSlot < SAMPLE_SLOTS ? nextSlot++ : -1
       if (slot < 0) {
-        tell(`more than ${ENGINE.samples} samples are loaded at once, which is all there is room for. The newest one will be silent.`)
-        return ENGINE.samples - 1
+        tell(`more than ${SAMPLE_SLOTS} samples are loaded at once, which is all there is room for. The newest one will be silent.`)
+        return SAMPLE_SLOTS - 1
       }
       slots.set(sample, slot)
     }
@@ -888,7 +983,7 @@ function makeConductor(post, load) {
   function dress(rec, at) {
     const part = parts[rec.part]
     for (const [pid, , , , , def] of partParams) {
-      const want = rec.patch.has(pid) ? rec.patch.get(pid) : def
+      const want = real(rec, pid, rec.patch.has(pid) ? rec.patch.get(pid) : def)
       if ((part.values.has(pid) ? part.values.get(pid) : def) !== want) {
         part.values.set(pid, want)
         event(at, PARAM, rec.part, pid, want, 0)
@@ -922,8 +1017,7 @@ function makeConductor(post, load) {
   function synthFor(sid, at) {
     let rec = synths.get(sid)
     if (!rec) {
-      rec = { patch: patchOf(PRESETS.keys, '', false, plain()), part: -1, used: 0, note: 60, macro: null }
-      synths.set(sid, rec)
+      rec = record(sid, patchOf(PRESETS.keys, '', false, plain()), 60, null)
     }
     seat(rec, at)
     rec.used = ++uses
@@ -934,27 +1028,27 @@ function makeConductor(post, load) {
   const notes = (n) => (Array.isArray(n) ? n : [n]).map(note).filter((v) => v !== null)
 
   function setAll(rec, given, at, glide) {
-    const changed = patchOf(given, '', false, new Map(), slotOf)
+    const changed = patchOf(given, '', false, new Map(), slotFor)
     for (const [pid, value] of changed) {
       if (pid >= 200) { if (pid !== MASTER) event(at, PARAM, 0, pid, value, glide); continue }
       if (!rec) continue
       rec.patch.set(pid, value)
       if (rec.part >= 0) {
-        parts[rec.part].values.set(pid, value)
-        event(at, PARAM, rec.part, pid, value, glide)
+        parts[rec.part].values.set(pid, real(rec, pid, value))
+        event(at, PARAM, rec.part, pid, real(rec, pid, value), glide)
       }
     }
   }
 
   // setVolume(1) is the engine's master volume at 0.5: loud enough for one voice, with room for many.
-  const master = (at) => event(at, PARAM, 0, MASTER, muted ? 0 : clamp(volume * 0.5, 0, 2), 0)
+  const master = (at) => event(at, PARAM, 0, MASTER, muted || paused ? 0 : clamp(volume * 0.5, 0, 2), 0)
 
   const does = {
     synth(c, at) {
       let rec = synths.get(c.id)
-      if (!rec) synths.set(c.id, rec = { patch: null, part: -1, used: ++uses, note: 60, macro: null })
+      if (!rec) { rec = record(c.id, null, 60, null); rec.used = ++uses }
       const preset = c.preset == null ? null : PRESETS[c.preset] || PRESETS.keys
-      rec.patch = patchOf(c.set, '', false, patchOf(preset, '', false, plain()), slotOf)
+      rec.patch = patchOf(c.set, '', false, patchOf(preset, '', false, plain()), slotFor)
       rec.note = (preset && preset.note) || 60
       rec.macro = macroOf(c.macro !== undefined ? c.macro : preset && preset.macro, false)
       for (const [pid, value] of rec.patch) if (pid >= 200) { rec.patch.delete(pid); if (pid !== MASTER) event(at, PARAM, 0, pid, value, 0) }
@@ -1002,8 +1096,8 @@ function makeConductor(post, load) {
     sound(c, at) {
       const sound = SOUNDS[c.name]
       if (!sound) return
-      const sid = 'sound:' + c.name
-      if (!synths.has(sid)) synths.set(sid, { patch: patchOf(sound.patch, '', false, plain()), part: -1, used: 0, note: 60, macro: macroOf(sound.patch.macro, false) })
+      const sid = prefix + 'sound:' + c.name
+      if (!synths.has(sid)) record(sid, patchOf(sound.patch, '', false, plain()), 60, macroOf(sound.patch.macro, false))
       const rec = synthFor(sid, at)
       for (const [after, n, len, vel, slideTo, slideTime] of sound.notes) {
         const h = autoHandle()
@@ -1017,6 +1111,7 @@ function makeConductor(post, load) {
     },
     sample(c) {
       const slot = slotOf(c.id)
+      scope.samples.add(c.id)
       const send = ({ pcm, channels, rate }) => {
         const base = c.note == null ? 60 : note(c.note) ?? 60
         const frames = Math.floor(pcm.length / channels)
@@ -1042,52 +1137,181 @@ function makeConductor(post, load) {
         .filter((s) => s[1].length).sort((a, b) => a[0] - b[0])
       const length = c.length > 0 ? c.length : steps.length ? steps[steps.length - 1][0] + steps[steps.length - 1][2] : 0
       // The last number is how many times round; 0 is for ever.
+      scope.tunes.add(c.id)
       ops.push(['tune', c.id, at, rec.part, steps, length, c.repeat === true ? 0 : c.repeat > 1 ? Math.floor(c.repeat) : 1])
     },
     stop(c) {
       if (c.id != null) ops.push(['stopTune', c.id])
-      else ops.push(['stop'])
+      else if (scope.name === '') ops.push(['stop'])
+      else {
+        // Everything of this scope, and nothing of anyone else's.
+        for (const sid of scope.synths) if (synths.get(sid)?.part >= 0) ops.push(['stopPart', synths.get(sid).part, 1])
+        for (const tune of scope.tunes) ops.push(['stopTune', tune])
+        scope.tunes.clear()
+        if (song && song.scope === scope) { if (song.ready) steer({ do: 'stop' }, null); else song = null }
+      }
     },
     master(c, at) {
-      if (c.volume != null && Number.isFinite(+c.volume)) volume = Math.max(0, +c.volume)
-      if (c.mute != null) muted = !!c.mute
-      if (c.volume != null || c.mute != null) master(at)
       if (c.set) setAll(null, c.set, at, 0)
+      if (c.volume == null && c.mute == null && c.pause == null) return
+      if (scope.name === '') {
+        if (c.volume != null && Number.isFinite(+c.volume)) volume = Math.max(0, +c.volume)
+        if (c.mute != null) muted = !!c.mute
+        if (c.pause != null) paused = !!c.pause
+        return master(at)
+      }
+      if (c.volume != null && Number.isFinite(+c.volume)) scope.gain = clamp(+c.volume, 0, 4)
+      if (c.mute != null) scope.muted = !!c.mute
+      if (c.pause != null) scope.paused = !!c.pause
+      turn(scope, at)
     },
-    song() {
-      tell('tracker songs are not ready yet in this version, so playSong plays nothing. The rest of your sound is not affected.')
-      ops.push(['song'])
+    // The sender is finished: everything of its scope is stopped and forgotten, and its places are free again.
+    close() {
+      for (const sid of scope.synths) {
+        const rec = synths.get(sid)
+        if (rec && rec.part >= 0) { ops.push(['stopPart', rec.part, 1]); parts[rec.part].owner = null }
+        synths.delete(sid)
+      }
+      for (const tune of scope.tunes) ops.push(['stopTune', tune])
+      for (const sample of scope.samples) does.unsample({ id: sample })
+      if (song && song.scope === scope) { dropSongSynths(); ops.push(['songUnload']); song = null }
+      scopes.delete(scope.name)
     },
+    // A SONG is read and played by the engine itself. Loading takes a moment (the file is fetched, and the engine
+    // answers with the synth patches the song asks for by name); what is asked of the song meanwhile waits for it.
+    song(c, at) {
+      const what = c.do || 'play'
+      if (what === 'play' && (c.url || c.bytes)) {
+        if (!ENGINE.events.includes('song')) return tell('tracker songs are not ready yet in this version, so playSong plays nothing. The rest of your sound is not affected.')
+        const mine = song = { id: c.id, scope, token: ++songs, ready: false, waiting: [], patches: c.patches || {}, name: c.name || c.url || 'given as bytes', at, vol: c.vol, repeat: c.repeat ?? c.loop }
+        const job = (async () => {
+          const bytes = new Uint8Array(await bytesOf(c))
+          const files = []
+          // One of our own songs is JSON, and may name WAV files beside it for its samples.
+          if (bytes[bytes.findIndex((b) => b > 32)] === 123) {
+            let named = []
+            try { named = (JSON.parse(new TextDecoder().decode(bytes)).samples || []).map((sample) => sample && sample.file).filter((f) => typeof f === 'string') } catch (e) { /* the engine will say what is wrong with it */ }
+            for (const file of new Set(named)) {
+              const given = c.files && c.files[file]
+              files.push([new TextEncoder().encode(file), new Uint8Array(await bytesOf(given ? { bytes: given } : { url: c.url ? new URL(file, new URL(c.url, typeof document !== 'undefined' ? document.baseURI : 'file:///')).href : file }))])
+            }
+          }
+          if (song !== mine) return
+          ops.push(['songLoad', mine.token, bytes, files, parts.length, SAMPLE_SLOTS])
+          flush()
+        })().catch((e) => { tell(`the song ${shown(mine.name)} could not be loaded (${(e && e.message) || e}), so it will not play.`); if (song === mine) song = null })
+        loading.add(job)
+        job.finally(() => loading.delete(job))
+        return
+      }
+      if (!song || (c.id != null && c.id !== song.id)) return
+      if (song.ready) steer(c, at)
+      else song.waiting.push([c, at])
+    },
+  }
+
+  let song = null
+  let songs = 0
+  const SONG = 15
+  // One thing asked of the song, as the event that does it on its exact frame.
+  function steer(c, at) {
+    const what = c.do || 'play'
+    if (what === 'play' || what === 'resume') event(at, SONG, 0, 1, 0, 0)
+    else if (what === 'stop') event(at, SONG, 0, 0, 0, 0)
+    else if (what === 'pause') event(at, SONG, 0, 2, 0, 0)
+    else if (what === 'seek') event(at, SONG, 0, 3, Math.max(0, c.order | 0), Math.max(0, c.row | 0))
+    else if (what === 'repeat') event(at, SONG, 0, 4, c.repeat === false ? 0 : 1, 0)
+    else if (what === 'volume' && Number.isFinite(+c.vol)) {
+      // The engine turns the song's own channels; its synth patches are parts of ours, and are turned here.
+      song.vol = clamp(+c.vol, 0, 2)
+      event(at, SONG, 0, 5, song.vol, 0)
+      for (const rec of synths.values()) {
+        if (!rec.ofSong) continue
+        rec.patch.set(VOLUME, clamp(rec.songVolume * song.vol, 0, 2))
+        if (rec.part >= 0) { parts[rec.part].values.set(VOLUME, real(rec, VOLUME, rec.patch.get(VOLUME))); event(at, PARAM, rec.part, VOLUME, parts[rec.part].values.get(VOLUME), 0.02) }
+      }
+    }
+  }
+  // The synths a song's instruments were given, which go when the song does.
+  function dropSongSynths() {
+    for (const [sid, rec] of synths) {
+      if (!rec.ofSong) continue
+      if (rec.part >= 0) { ops.push(['stopPart', rec.part, 1]); parts[rec.part].owner = null }
+      rec.scope.synths.delete(sid)
+      synths.delete(sid)
+    }
+  }
+  // The engine has read the song (or could not). Set up a synth for each instrument that names a patch, tell the
+  // song which part each is, and start it.
+  function songLoaded(m, now) {
+    if (!song || m.token !== song.token) return
+    const text = (bytes) => new TextDecoder().decode(bytes)
+    if (m.result !== 0) {
+      tell(`the song ${shown(song.name)} could not be played: ${m.result === -100 ? 'this version of the engine does not play songs' : (m.error && text(m.error)) || 'it is not a song file this can read (a .mod, an .xm or a song of its own)'}.`)
+      song = null
+      return
+    }
+    dropSongSynths()
+    enter(song.scope.name)
+    for (const [instrument, nameBytes] of m.patches) {
+      const name = text(nameBytes)
+      let bound = song.patches[name]
+      if (bound === undefined && PRESETS[name]) bound = name
+      if (bound === undefined) tell(`the song ${shown(song.name)} has an instrument that is a synth called ${shown(name)}, and was not told what that is, so it plays as "keys". Say what it is: playSong(file, { patches: { ${shown(name)}: "bass" } }).`)
+      const settings = bound && typeof bound === 'object' ? bound : {}
+      const preset = PRESETS[typeof bound === 'string' ? bound : settings.preset] || (settings.preset === undefined && typeof bound === 'object' ? null : PRESETS.keys)
+      const rec = record(prefix + 'song:' + name, patchOf(settings, '', false, patchOf(preset, '', false, plain()), slotFor), 60, macroOf(settings.macro !== undefined ? settings.macro : preset && preset.macro, false))
+      rec.ofSong = true
+      // A song's channels play at half volume, to leave room for one another; its synths do the same.
+      rec.songVolume = (rec.patch.has(VOLUME) ? rec.patch.get(VOLUME) : 1) * 0.5
+      rec.patch.set(VOLUME, clamp(rec.songVolume * (song.vol ?? 1), 0, 2))
+      rec.used = ++uses
+      seat(rec, now)
+      event(now, SONG, 0, 6, instrument, rec.part)
+    }
+    song.ready = true
+    song.info = m.info
+    if (song.repeat === false) event(now, SONG, 0, 4, 0, 0)
+    if (song.vol != null) steer({ do: 'volume', vol: song.vol }, now)
+    event(Math.max(now, song.at ?? now), SONG, 0, 1, 0, 0)
+    for (const [c, at] of song.waiting) steer(c, Math.max(now, at ?? now))
+    song.waiting = []
   }
 
   function flush() {
-    if (!ops.length) return
-    const sending = ops, moving = transfer
-    ops = []
-    transfer = []
-    post(sending, moving)
+    while (ops.length) {
+      const sending = ops, moving = transfer
+      ops = []
+      transfer = []
+      post(sending, moving)
+    }
   }
 
   return {
-    /** Carry out one command at a time of the sound card, in seconds. */
-    run(command, at) {
+    /** Carry out one command at a time of the sound card, in seconds, for the sender whose scope is named. */
+    run(command, at, scopeName) {
       const how = command && does[command.op]
-      if (how) how(command, at)
+      if (!how) return
+      enter(scopeName)
+      // Inside a scope every id is the scope's own.
+      if (prefix && (command.id != null || command.synth != null)) command = { ...command, ...(command.id != null ? { id: prefix + command.id } : {}), ...(command.synth != null ? { synth: prefix + command.synth } : {}) }
+      how(command, at)
     },
     flush,
     /** Set the engine to how a new conductor expects to find it. */
-    begin() { master(null); flush() },
+    begin() { enter(''); master(null); flush() },
+    songLoaded,
     loading,
     /** The engine's part a synth has now: 65535 for no id (everything), -1 for a synth with no part. */
-    partOf(sid) { return sid == null ? 0xffff : synths.get(sid)?.part ?? -1 },
+    partOf(sid, scopeName) { return sid == null ? 0xffff : synths.get((scopeName ? scopeName + '\u0001' : '') + sid)?.part ?? -1 },
     /** A setting of a synth as the commands so far have left it: [what it is, its value in the engine's units], or null. */
-    settingOf(sid, name) {
+    settingOf(sid, name, scopeName) {
       const entry = setting(name)
-      const rec = synths.get(sid)
+      const rec = synths.get((scopeName ? scopeName + '\u0001' : '') + sid)
       return entry && rec ? [entry, rec.patch.get(entry.id)] : null
     },
     /** How much everything is turned down or up after the parts are mixed. */
-    gain: () => (muted ? 0 : clamp(volume * 0.5, 0, 2)),
+    gain: () => (muted || paused ? 0 : clamp(volume * 0.5, 0, 2)),
   }
 }
 
@@ -1160,14 +1384,14 @@ function reading([source, samples, left, right, words], gain) {
  * when the program that made the synth is somewhere else (Python, a worker). It writes ordinary commands for that
  * id, and answers get() and describe() from what the commands so far have set, so it needs to be told nothing.
  */
-function makeTarget(id, run, conductor, read) {
+function makeTarget(id, run, conductor, read, scope) {
   const held = new Map()
   let handle = 0x7f000000
   const target = {
     id,
     set(name, value) { run({ op: 'set', id, set: typeof name === 'string' ? { [name]: value } : name }); return target },
-    get(name) { const now = conductor()?.settingOf(id, name); return now ? readSetting(now[0], now[1]) : undefined },
-    describe(name) { const now = conductor()?.settingOf(id, name); return now ? describeSetting(now[0], now[1]) : setting(name) ? describeSetting(setting(name)) : null },
+    get(name) { const now = conductor()?.settingOf(id, name, scope); return now ? readSetting(now[0], now[1]) : undefined },
+    describe(name) { const now = conductor()?.settingOf(id, name, scope); return now ? describeSetting(now[0], now[1]) : setting(name) ? describeSetting(setting(name)) : null },
     noteOn(note, velocity = 0.8) {
       const n = noteNumber(note)
       target.noteOff(n)
@@ -1182,14 +1406,18 @@ function makeTarget(id, run, conductor, read) {
       held.delete(n)
       return target
     },
-    samples: () => read(id).samples,
-    level: () => read(id).level,
-    notes: () => read(id).notes,
+    samples: () => read(id, scope).samples,
+    level: () => read(id, scope).level,
+    notes: () => read(id, scope).notes,
   }
   target.note_on = target.noteOn
   target.note_off = target.noteOff
   return target
 }
+
+/** Where a song is, from the engine's ten numbers: for drawing a cursor. */
+const NO_SONG = { state: 'none', order: 0, pattern: 0, row: 0, tick: 0, speed: 0, tempo: 0, rounds: 0, rows: 0, orders: 0 }
+const songPlace = (n) => (n ? { state: ['none', 'stopped', 'playing', 'paused'][n[0]] || 'none', order: n[1], pattern: n[2], row: n[3], tick: n[4], speed: n[5], tempo: n[6], rounds: n[7], rows: n[8], orders: n[9] } : NO_SONG)
 
 // --- the real-time player --------------------------------------------------------------------
 
@@ -1239,6 +1467,7 @@ export function createPlayer(options = {}) {
   let asks = 0
   let closed = false
   let paused = false
+  let resting = false
   let waitingSince = null
   const local = () => performance.now() / 1000
   const waiting = new Map()
@@ -1246,9 +1475,9 @@ export function createPlayer(options = {}) {
   const player = {
     state: 'loading', kind: null, context: null, node: null,
     ready: new Promise((yes) => { ready = yes }),
-    send, unlock, close, read,
+    send, unlock, close, read, songPosition,
     /** A synth that exists by its id, as something controls can be tied to: set, get, describe, noteOn, noteOff, samples, level, notes. */
-    target: (id) => makeTarget(id, (c) => send({ synths: COMMANDS, cmds: [c] }), () => conductor, read),
+    target: (id, scope) => makeTarget(id, (c) => send({ synths: COMMANDS, scope, cmds: [c] }), () => conductor, read, scope),
     /** Silence, with everything kept as it is: for a scene that is paused or out of view. */
     pause() { paused = true; player.context?.suspend?.() },
     resume() { paused = false; unlock() },
@@ -1277,7 +1506,7 @@ export function createPlayer(options = {}) {
   // BROWSERS KEEP A PAGE SILENT until the person has touched it. Every touch asks again; the first one that the
   // browser accepts turns the sound on, and what was held back for it is played then.
   function unlock() {
-    if (!closed && !paused && context.state !== 'running') context.resume?.().catch(() => {})
+    if (!closed && !paused && !resting && context.state !== 'running') context.resume?.().catch(() => {})
   }
   const GESTURES = ['pointerdown', 'mousedown', 'touchend', 'keydown']
   if (typeof addEventListener === 'function') for (const g of GESTURES) addEventListener(g, unlock, { capture: true, passive: true })
@@ -1300,30 +1529,45 @@ export function createPlayer(options = {}) {
     const now = context.currentTime + latency
     const waited = held
     held = []
-    for (const { c, asked, ahead } of waited) {
+    for (const { c, asked, ahead, scope } of waited) {
       const still = ahead - (here - asked)
       if (ONE_SHOTS.has(c.op) && still < -patience) continue
-      conductor.run(c, now + Math.max(0, still))
+      conductor.run(c, now + Math.max(0, still), scope)
     }
     conductor.flush()
     ready()
   }
 
+  // Senders that share this player each pause for themselves (a scene out of view). When every one of them is
+  // paused the sound card is let rest; the first to come back wakes it.
+  const pausedScopes = new Map()
+  function pauses(batch) {
+    const name = batch.scope || ''
+    for (const c of batch.cmds) {
+      if (c && c.op === 'master' && c.pause != null) pausedScopes.set(name, !!c.pause)
+      else if (c && c.op === 'close') pausedScopes.delete(name)
+      else if (!pausedScopes.has(name)) pausedScopes.set(name, false)
+    }
+    const all = pausedScopes.size > 0 && [...pausedScopes.values()].every(Boolean)
+    if (all && !resting) { resting = true; context.suspend?.() } else if (!all && resting) { resting = false; unlock() }
+  }
+
   function send(batch) {
     if (closed || player.state === 'failed' || !batch || !Array.isArray(batch.cmds)) return
+    pauses(batch)
     if (!live()) {
       // Not able to play yet: everything is kept in order, with when it was asked for (see settle).
       const at = local()
       if (held.length > 1000) held = held.filter((h) => !ONE_SHOTS.has(h.c.op) || h.ahead - (at - h.asked) > -KEPT_WHILE_LOADING)
       for (const c of batch.cmds) {
         if (!c) continue
-        if (c.op === 'stop') held = held.filter((h) => !(ONE_SHOTS.has(h.c.op) || h.c.op === 'tune' || h.c.op === 'song') || (c.id != null && h.c.id !== c.id))
+        if (c.op === 'stop') held = held.filter((h) => h.scope !== batch.scope || !(ONE_SHOTS.has(h.c.op) || h.c.op === 'tune' || h.c.op === 'song') || (c.id != null && h.c.id !== c.id))
         const ahead = typeof c.t === 'number' && typeof batch.now === 'number' ? c.t - batch.now : 0
-        if (c.op !== 'stop' || c.id == null) held.push({ c, asked: at, ahead })
+        if (c.op !== 'stop' || c.id == null) held.push({ c, asked: at, ahead, scope: batch.scope })
       }
       if (!saidWaiting && batch.cmds.some((c) => c && (ONE_SHOTS.has(c.op) || c.op === 'tune' || c.op === 'song'))) {
         saidWaiting = true
-        setTimeout(() => { if (!closed && !paused && context.state !== 'running' && player.state !== 'failed') tell('sound is waiting for a tap, a click or a key press. Browsers keep a page silent until the person using it has touched it.', 'info') }, 400)
+        setTimeout(() => { if (!closed && !paused && !resting && context.state !== 'running' && player.state !== 'failed') tell('sound is waiting for a tap, a click or a key press. Browsers keep a page silent until the person using it has touched it.', 'info') }, 400)
       }
       return
     }
@@ -1344,7 +1588,7 @@ export function createPlayer(options = {}) {
       let at = current + latency
       if (typeof c.t === 'number' && offset !== null) at = c.t + offset + latency
       if (at < current - TOO_LATE && ONE_SHOTS.has(c.op)) continue
-      conductor.run(c, at)
+      conductor.run(c, at, batch.scope)
     }
     conductor.flush()
   }
@@ -1355,19 +1599,36 @@ export function createPlayer(options = {}) {
   const tapped = new Map()
   const watched = new Map()
   let watchSaid = 0
-  function read(id) {
-    const part = conductor ? conductor.partOf(id) : -1
+  let songWatched = -10
+  let songNow = NO_SONG
+  // Say what is being watched, when something new is, and again every half second while reading goes on.
+  function watch(at, fresh) {
+    if (!fresh && at - watchSaid <= 0.5) return
+    for (const [p, last] of watched) if (at - last > 2) { watched.delete(p); tapped.delete(p) }
+    watchSaid = at
+    port.postMessage({ watch: [...watched.keys()], song: at - songWatched < 2 })
+  }
+  function read(id, scope) {
+    const part = conductor ? conductor.partOf(id, scope) : -1
     if (part < 0 || closed) return NOTHING
     if (core) { const now = core.taps([part], 1024)[0]; return now ? reading(now, conductor.gain()) : NOTHING }
     if (!port) return NOTHING
     const at = local()
-    if (!watched.has(part) || at - watchSaid > 0.5) {
-      watched.set(part, at)
-      for (const [p, last] of watched) if (at - last > 2) { watched.delete(p); tapped.delete(p) }
-      watchSaid = at
-      port.postMessage({ watch: [...watched.keys()] })
-    } else watched.set(part, at)
+    const fresh = !watched.has(part)
+    watched.set(part, at)
+    watch(at, fresh)
     return tapped.get(part) || NOTHING
+  }
+  /** Where the song is now: { state: 'none'|'stopped'|'playing'|'paused', order, pattern, row, tick, speed, tempo, rounds, rows, orders }. It never waits. */
+  function songPosition() {
+    if (closed) return NO_SONG
+    if (core) return songPlace(core.songPosition())
+    if (!port) return NO_SONG
+    const at = local()
+    const fresh = at - songWatched > 2
+    songWatched = at
+    watch(at, fresh)
+    return songNow
   }
 
   function close() {
@@ -1389,8 +1650,13 @@ export function createPlayer(options = {}) {
   }
 
   function onMessage(m) {
-    if (m.type === 'taps') for (const tap of m.taps) tapped.set(tap[0], reading(tap, conductor.gain()))
-    else if (m.type === 'state') { waiting.get(m.ask)?.(m); waiting.delete(m.ask) }
+    if (m.type === 'taps') {
+      for (const tap of m.taps) tapped.set(tap[0], reading(tap, conductor.gain()))
+      if (m.song) songNow = songPlace(m.song)
+    } else if (m.type === 'song') {
+      conductor.songLoaded(m, context.currentTime + latency)
+      conductor.flush()
+    } else if (m.type === 'state') { waiting.get(m.ask)?.(m); waiting.delete(m.ask) }
     else if (m.type === 'problem') tell('there was not enough memory for a sample, so it will be silent.')
   }
 
@@ -1401,7 +1667,7 @@ export function createPlayer(options = {}) {
       if (port) port.postMessage({ ops }, transfer)
       else core.exec(ops)
     }
-    conductor = makeConductor(post, async (c) => decode(await sampleBytes(c), context))
+    conductor = makeConductor(post, async (c) => decode(await sampleBytes(c), context), sampleBytes)
     const destination = options.destination || context.destination
     const how = options.fallback !== 'always' && context.audioWorklet && typeof AudioWorkletNode !== 'undefined' ? await loadWorklet() : 'none'
     if (closed) return
@@ -1482,13 +1748,13 @@ export async function createOfflinePlayer(options = {}) {
   const sampleRate = options.sampleRate || 48000
   const start = options.start || 0
   const wasm = await engineBytes(options.wasm)
-  const core = makeCore(wasm instanceof WebAssembly.Module ? wasm : await WebAssembly.compile(wasm), sampleRate, () => {})
-  const conductor = makeConductor((ops) => core.exec(ops), async (c) => decode(await sampleBytes(c)))
+  const core = makeCore(wasm instanceof WebAssembly.Module ? wasm : await WebAssembly.compile(wasm), sampleRate, (m) => { if (m.type === 'song') conductor.songLoaded(m, core.time / sampleRate) })
+  const conductor = makeConductor((ops) => core.exec(ops), async (c) => decode(await sampleBytes(c)), sampleBytes)
   conductor.begin()
   return {
     send(batch) {
       if (!batch || !Array.isArray(batch.cmds)) return
-      for (const c of batch.cmds) if (c) conductor.run(c, (typeof c.t === 'number' ? c.t : typeof batch.now === 'number' ? batch.now : start) - start)
+      for (const c of batch.cmds) if (c) conductor.run(c, (typeof c.t === 'number' ? c.t : typeof batch.now === 'number' ? batch.now : start) - start, batch.scope)
       conductor.flush()
     },
     async render(seconds) {
@@ -1501,11 +1767,13 @@ export async function createOfflinePlayer(options = {}) {
     },
     get time() { return core.time / sampleRate },
     voices: () => core.voices(),
+    /** Where the song is at the point rendering has reached (see createPlayer). */
+    songPosition: () => songPlace(core.songPosition()),
     /** A synth that exists by its id, as something controls can be tied to (see createPlayer). What it plays starts where rendering has reached. */
-    target(id) { return makeTarget(id, (c) => { conductor.run(c, core.time / sampleRate); conductor.flush() }, () => conductor, (i) => this.read(i)) },
+    target(id, scope) { return makeTarget(id, (c) => { conductor.run(c, core.time / sampleRate, scope); conductor.flush() }, () => conductor, (i, sc) => this.read(i, sc), scope) },
     /** What a synth (or, with no id, everything) is doing at the point rendering has reached: { samples, level, notes }. */
-    read(id) {
-      const part = conductor.partOf(id)
+    read(id, scope) {
+      const part = conductor.partOf(id, scope)
       const now = part < 0 ? null : core.taps([part], 1024)[0]
       return now ? reading(now, conductor.gain()) : NOTHING
     },
@@ -1558,11 +1826,15 @@ function choices(args, names) {
  *   `batch: 'manual'` sends nothing until flush() is called (once a frame, say); otherwise a batch goes at the end of each turn.
  *   The rest are createPlayer's, for the player this makes when there is no `sound`.
  */
+let shared = null
+
 export function createSound(options = {}) {
   const clock = options.clock || (() => performance.now() / 1000)
   const prefix = options.ids || ''
   let transport = options.sound || null
   let player = null
+  let scope = options.scope || ''
+  let mine = null
   let cmds = []
   let waiting = false
   let ids = 0
@@ -1575,8 +1847,21 @@ export function createSound(options = {}) {
   function flush() {
     waiting = false
     if (!cmds.length || closed) return
-    if (!transport) transport = player = createPlayer(options)
+    if (!transport) {
+      // ONE PLAYER FOR THE PAGE. Every createSound() on a page that is not given a transport, or an AudioContext
+      // of its own, shares one player (the options of the first make it), each in a scope of its own: so ten
+      // scenes on a page are one sound card and one engine, and each still stops, mutes and pauses alone.
+      if (options.context || options.destination || options.share === false) transport = player = createPlayer(options)
+      else {
+        if (!shared || shared.player.state === 'closed' || shared.player.state === 'failed') shared = { player: createPlayer(options), users: 0, made: 0 }
+        shared.users++
+        mine = shared
+        scope = options.scope || 'page' + ++shared.made
+        transport = player = shared.player
+      }
+    }
     const batch = { synths: COMMANDS, now: clock(), cmds }
+    if (scope) batch.scope = scope
     cmds = []
     transport.send(batch)
   }
@@ -1773,7 +2058,7 @@ export function createSound(options = {}) {
     }
     set_macro(macro) { return this.setMacro(macro) }
 
-    // --- what a dial, a keyboard, a scope and a meter look for (controls.js binds to anything that has these)
+    // --- what a dial, a keyboard, a scope and a meter look for (dials.js binds to anything that has these)
 
     /** The value of a setting: lead.get("cutoff"). */
     get(name) {
@@ -1802,11 +2087,11 @@ export function createSound(options = {}) {
     note_on(note, velocity) { return this.noteOn(note, velocity) }
     note_off(note) { return this.noteOff(note) }
     /** The wave this synth is making now, numbers from -1 to 1: a scope draws it. */
-    samples() { return (transport?.read?.(this._id) || NOTHING).samples }
+    samples() { return (transport?.read?.(this._id, scope) || NOTHING).samples }
     /** How loud this synth is now, [left, right], each from 0 to 1: a meter shows it. */
-    level() { return (transport?.read?.(this._id) || NOTHING).level }
+    level() { return (transport?.read?.(this._id, scope) || NOTHING).level }
     /** The notes this synth is sounding now, as numbers: a keyboard lights them. */
-    notes() { return (transport?.read?.(this._id) || NOTHING).notes }
+    notes() { return (transport?.read?.(this._id, scope) || NOTHING).notes }
 
     /** Change several settings at once: lead.set({ cutoff: 800, resonance: 0.4 }), and { glide: seconds } to slide there. Or one: lead.set("cutoff", 800). */
     set(given, o = {}) {
@@ -1913,9 +2198,9 @@ export function createSound(options = {}) {
   /** Everything that is sounding, as a target for a scope, a meter and dials for the volume and the shared effects. */
   let volumeNow = 1
   const output = {
-    samples: () => (transport?.read?.() || NOTHING).samples,
-    level: () => (transport?.read?.() || NOTHING).level,
-    notes: () => (transport?.read?.() || NOTHING).notes,
+    samples: () => (transport?.read?.(undefined, scope) || NOTHING).samples,
+    level: () => (transport?.read?.(undefined, scope) || NOTHING).level,
+    notes: () => (transport?.read?.(undefined, scope) || NOTHING).notes,
     describe(name) {
       if (key(name) === 'volume') return { name: 'volume', kind: 'float', min: 0, max: 2, default: 1, unit: 'gain' }
       const entry = setting(name)
@@ -1937,17 +2222,55 @@ export function createSound(options = {}) {
     command(c)
   }
 
-  function playSong(path, o = {}) {
-    if (typeof path !== 'string' || !path.trim()) throw new Error(`playSong(${path === undefined ? '' : shown(path)}) needs the name of a song file, as in playSong("tune.mod")`)
-    tell('tracker songs are not ready yet in this version, so playSong plays nothing. The rest of your sound is not affected.')
+  /**
+   * Play a tracker song: a .mod or .xm file, or one of our own songs (.json). playSong("tune.mod"), or its bytes.
+   * { repeat: false } plays it once, { volume: 0.5 }, { after: 2 }. A song whose instruments are synths by name is
+   * told what they are with { patches: { "wobble": "bass", "pling": { preset: "pluck", echo: 0.4 } } }; a name that
+   * is a ready-made synth's needs no telling. One song plays at a time.
+   */
+  function playSong(file, o = {}) {
+    const bytes = file instanceof ArrayBuffer || ArrayBuffer.isView(file)
+    if (!bytes && (typeof file !== 'string' || !file.trim())) throw new Error(`playSong(${file === undefined ? '' : shown(file)}) needs the name of a song file, as in playSong("tune.mod")`)
     const id = prefix + 'g' + ++ids
-    const c = { op: 'song', id, do: 'play', name: path, url: options.resolve ? options.resolve(path) : path, loop: o.loop !== false, t: when(o, 'playSong') }
-    if (o.volume !== undefined) c.vol = amount(o.volume, 'playSong: volume', 0, 4)
-    command(c)
+    const c = { op: 'song', id, do: 'play', repeat: (o.repeat ?? o.loop) !== false, t: when(o, 'playSong') }
+    if (o.volume !== undefined) c.vol = amount(o.volume, 'playSong: volume', 0, 2)
+    if (o.patches !== undefined) {
+      if (!o.patches || typeof o.patches !== 'object') throw new Error(`playSong: patches needs names and what each is, as in { patches: { "wobble": "bass" } }, not ${shown(o.patches)}`)
+      const names = Object.keys(PRESETS).filter((n) => n !== 'sample')
+      for (const [name, what] of Object.entries(o.patches)) {
+        const preset = typeof what === 'string' ? what : what && what.preset
+        if (preset !== undefined && !PRESETS[preset]) throw new Error(`playSong: the patch ${shown(name)} names a synth called ${shown(preset)}, and there is none.${meant(String(preset), names)} The synths are: ${names.join(', ')}`)
+        if (what && typeof what === 'object') { patchOf(what, `playSong: the patch ${shown(name)}`, true, new Map(), () => 0); macroOf(what.macro, true, `playSong: the patch ${shown(name)}`) } else if (typeof what !== 'string') throw new Error(`playSong: the patch ${shown(name)} needs the name of a synth or settings in braces, not ${shown(what)}`)
+      }
+      c.patches = o.patches
+    }
+    if (bytes) command({ ...c, bytes: file })
+    else if (options.read) {
+      // A host whose player cannot fetch reads the song here, and the WAV files one of our own songs names.
+      const from = file.includes('/') ? file.slice(0, file.lastIndexOf('/') + 1) : ''
+      Promise.resolve().then(() => options.read(file)).then(async (data) => {
+        if (!data) throw new Error('it is not there')
+        const all = new Uint8Array(data.buffer || data, data.byteOffset || 0, data.byteLength)
+        const files = {}
+        if (all[all.findIndex((b) => b > 32)] === 123) {
+          let named = []
+          try { named = (JSON.parse(new TextDecoder().decode(all)).samples || []).map((sample) => sample && sample.file).filter((f) => typeof f === 'string') } catch (e) { /* the engine says what is wrong */ }
+          for (const name of new Set(named)) files[name] = await options.read(from + name)
+        }
+        command({ ...c, name: file, bytes: all, files })
+      }).catch((e) => tell(`playSong(${shown(file)}): the file could not be read (${(e && e.message) || e}), so it will not play.`))
+    } else command({ ...c, name: file, url: options.resolve ? options.resolve(file) : typeof document !== 'undefined' ? new URL(file, document.baseURI).href : file })
+    const say = (what, more) => { command({ op: 'song', id, do: what, ...more, t: clock() }); return song }
     const song = {
-      stop() { command({ op: 'song', id, do: 'stop', t: clock() }); return song },
-      pause() { command({ op: 'song', id, do: 'pause', t: clock() }); return song },
-      resume() { command({ op: 'song', id, do: 'resume', t: clock() }); return song },
+      stop: () => say('stop'),
+      pause: () => say('pause'),
+      resume: () => say('resume'),
+      /** Go to a place in the song: its order list, then a row of the pattern there. */
+      seek: (order, row = 0) => say('seek', { order: amount(order, 'seek: the order', 0, 65535), row: amount(row, 'seek: the row', 0, 255) }),
+      set volume(v) { say('volume', { vol: amount(v, 'volume', 0, 2) }) },
+      set repeat(on) { say('repeat', { repeat: !!on }) },
+      /** Where the song is: { state, order, pattern, row, tick, speed, tempo, rounds, rows, orders }, for drawing it. */
+      get position() { return transport?.songPosition?.() || NO_SONG },
     }
     return song
   }
@@ -1986,6 +2309,9 @@ export function createSound(options = {}) {
     /** The sound clock now, in seconds: the time that { at } is read against. */
     soundTime() { return clock() },
     soundNames, synthNames, settingNames,
+    /** Silence for this program alone, with everything kept as it is (a scene that is out of view), and back again. */
+    pause() { command({ op: 'master', pause: true, t: clock() }); flush() },
+    resume() { command({ op: 'master', pause: false, t: clock() }); flush() },
     /** Send what has been asked for so far (for `batch: 'manual'`). */
     flush,
     /** The player this made for itself, once a sound has been asked for (null with a `sound` transport). */
@@ -1993,10 +2319,10 @@ export function createSound(options = {}) {
     /** Stop everything and let go of the sound card. */
     close() {
       if (closed) return
-      cmds = [{ op: 'stop', t: clock() }]
+      cmds = [{ op: 'stop', t: clock() }, { op: 'close', t: clock() }]
       if (transport) flush()
       closed = true
-      player?.close()
+      if (mine) { if (--mine.users <= 0) { mine.player.close(); if (shared === mine) shared = null } } else player?.close()
     },
   }
   // The Python spellings.

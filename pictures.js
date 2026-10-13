@@ -48,6 +48,14 @@
  *   loadFont                a font file beside the scene, with `await`: `await loadFont("Orbitron", "fonts/Orbitron.woff2")`
  *   use                     another .js file beside the scene, with `await`: what it exports
  *   measure                 time a part of your frame: `measure("physics", () => { … })`, shown with the frame rate
+ *   playSound, playNote,    sound: `playSound("coin")` is a ready-made game sound, `playNote("C4")` a note,
+ *   playNotes, makeSynth,   `playNotes("C4 E4 G4 - C5", 0.25)` a tune, and `const lead = makeSynth("lead")` a synth whose
+ *   loadSample, playArp…    settings are plain properties (`lead.cutoff = 800`). Also startArp, setEffects, setVolume,
+ *                           muteSound, stopSound, setTempo, beats, beat and soundTime. The first click or tap turns the
+ *                           sound on; it pauses while the scene is out of view and stops with the scene
+ *   dial, slider, button,   controls on the scene, laid out for you: `const speed = dial("speed", 0, 10)` is a number to
+ *   toggle, select,         read (`speed.value`), `dial("cutoff", lead, "cutoff")` is that setting of a synth,
+ *   keyboard, scope, meter  `keyboard(lead)` plays it and `scope(lead)` draws its wave. Also label, row, layout, theme, over
  *
  * and these functions are called if the scene defines them:
  *
@@ -81,7 +89,7 @@ const GIVEN = ['__loop', 'ctx', 'canvas', 'THREE', 'addons', 'frame', 'vsync', '
   'touches', 'pinch', 'circle', 'rect', 'line', 'text', 'background', 'triangle', 'ellipse', 'polygon', 'star', 'picture', 'random', 'pick', 'degrees', 'Sprite', 'remove', 'loadImage', 'load_image', 'loadText', 'load_text', 'loadJSON', 'load_json', 'saveText', 'save_text', 'saveJSON', 'save_json', 'openDatabase', 'open_database', 'loadFont', 'load_font', 'save', 'load', 'use', 'measure']
 /**
  * SOUND AND ON-SCREEN CONTROLS are two sibling libraries, each in a folder beside this file (`sound`,
- * `controls`) and each loaded only for a scene that uses one of its names (see `usesAny`). These are
+ * `dials`) and each loaded only for a scene that uses one of its names (see `usesAny`). These are
  * the names: a scene that uses any of a list is given all of it, in both spellings (`playSound`,
  * `play_sound`). The lists are written by scripts/sync-siblings.mjs from the copies in those folders.
  * Do not edit them by hand.
@@ -89,9 +97,9 @@ const GIVEN = ['__loop', 'ctx', 'canvas', 'THREE', 'addons', 'frame', 'vsync', '
 /* SOUND_NAMES:BEGIN */
 const SOUND_NAMES = ['playSound', 'playNote', 'playNotes', 'makeSynth', 'loadSample', 'playSong', 'playArp', 'startArp', 'mainSynth', 'soundOutput', 'stopSong', 'stopSound', 'setVolume', 'muteSound', 'unmuteSound', 'setEffects', 'setTempo', 'beats', 'beat', 'soundTime', 'soundNames', 'synthNames', 'settingNames', 'noteNumber']
 /* SOUND_NAMES:END */
-/* CONTROL_NAMES:BEGIN */
-const CONTROL_NAMES = ['button', 'dial', 'keyboard', 'label', 'layout', 'meter', 'over', 'row', 'scope', 'select', 'slider', 'theme', 'toggle']
-/* CONTROL_NAMES:END */
+/* DIAL_NAMES:BEGIN */
+const DIAL_NAMES = ['button', 'dial', 'keyboard', 'label', 'layout', 'meter', 'over', 'row', 'scope', 'select', 'slider', 'theme', 'toggle']
+/* DIAL_NAMES:END */
 /** The functions a scene may define, Python spelling beside the JavaScript one. */
 const HOOKS = {
   setup: ['setup'], update: ['update'], draw: ['draw'],
@@ -494,14 +502,14 @@ function usesAny(code, names) {
 /** Which of the parts that are loaded on first use a scene's text asks for. `pictures build` copies the same ones. */
 export function sceneUses(source) {
   const code = codeOf(source)
-  return { three: uses3D(source), sound: usesAny(code, SOUND_NAMES), controls: usesAny(code, CONTROL_NAMES) }
+  return { three: uses3D(source), sound: usesAny(code, SOUND_NAMES), dials: usesAny(code, DIAL_NAMES) }
 }
 
 /**
  * A sibling library, loaded the first time a scene uses it: the module in its folder beside this file.
  * A failure is not remembered, so the next scene tries again.
  */
-const SIBLINGS = { sound: 'sound/synths.js', controls: 'controls/controls.js' }
+const SIBLINGS = { sound: 'sound/synths.js', dials: 'dials/dials.js' }
 const siblings = {}
 function loadSibling(which) {
   const address = new URL(SIBLINGS[which], BASE).href
@@ -622,7 +630,7 @@ function syntaxLine(source) {
  *           storage?: { readText?: (path: string) => Promise<string | null>, writeText?: (path: string, text: string) => Promise<void>,
  *                       readBytes?: (path: string) => Promise<Uint8Array | null>, writeBytes?: (path: string, bytes: Uint8Array) => Promise<void> },
  *           sqlite?: string,
- *           sound?: { send?: (batch: { synths: number, now: number, cmds: object[] }) => void, pause?: () => void, resume?: () => void,
+ *           sound?: { send?: (batch: { synths: number, now: number, cmds: object[] }) => void,
  *                     readBytes?: (path: string) => Promise<Uint8Array | ArrayBuffer>, ids?: string,
  *                     read?: (id?: string) => { samples: Float32Array, level: number[], notes: number[] },
  *                     wasm?: ArrayBuffer | Uint8Array | WebAssembly.Module | string | Promise<any>, worklet?: 'auto' | 'blob' | 'file' | string,
@@ -641,7 +649,7 @@ function syntaxLine(source) {
  *   `sqlite` is the folder sql.js is loaded from (`sql-wasm.js` and `sql-wasm.wasm`), in place of the `sqlite` folder beside this file.
  *   `sound` is where a scene's sound is made (playSound, makeSynth and the rest; see SOUND). Without it the page plays. With `send`
  *   the page plays nothing and makes no player: the host is handed every batch of sound commands (synths.js's docs/commands.md) to
- *   play where it likes, is told `pause()` and `resume()` as the scene goes out of view and comes back, and is sent a `stop` command
+ *   play where it likes: among them `master` with `pause` as the scene goes out of view and comes back, and `stop` then `close`
  *   when the scene ends. `readBytes(path)` then gives a sample's bytes, which go in the batch in place of an address, `ids` begins every
  *   id, for scenes that share one player, and `read(id)` is what a synth is doing now, for a scope, a meter and lit keys (the host
  *   player's own `read`; without it they show nothing). For a page that plays but may fetch nothing: `wasm` is the engine's bytes (`sound/synths_core.wasm`)
@@ -656,7 +664,8 @@ function syntaxLine(source) {
  *   `crossOrigin` ('anonymous') is set on the images `loadImage` makes from the scene's own files, for a host
  *   whose page is on another origin than those files: the canvas can then still be read back, and WebGL may use the picture.
  * @returns {{ stop(): void, restart(source?: string): void, showFps(on: boolean): void, canvas: HTMLCanvasElement, sound: object | null }}
- *   `sound` is the page's sound player while a scene that uses sound runs (synths.js's: `state`, `context`, `node`), and null otherwise.
+ *   `sound` is the page's sound player while a scene that uses sound runs (synths.js's: `state`, `context`, `node`; the scenes of
+ *   a page share one), and null otherwise.
  */
 export function runScene(container, options = {}) {
   let run = 0
@@ -691,7 +700,7 @@ export function runScene(container, options = {}) {
   if (!container.clientHeight) container.style.aspectRatio = '16 / 9'
   let canvas = null
   let notice = null
-  let player = null // the page's sound player, while a scene that uses sound runs
+  let voice = null // the sound functions of the scene that is running, when it uses sound
   let stopRun = () => {}
   // The frame rate, top left, when asked for: frames counted over half a second, and under it
   // any parts of the frame the scene times itself with measure(). When a run ends its last
@@ -814,8 +823,8 @@ export function runScene(container, options = {}) {
       const takesWheel = usesWheel(code), takesPinch = usesPinch(code)
       canvas.style.touchAction = takesPointer ? 'none' : 'pan-y'
       // Sound and on-screen controls: asked of the scene's text, as three.js is, and loaded only for a scene that uses them.
-      const wantsSound = usesAny(code, SOUND_NAMES), wantsControls = usesAny(code, CONTROL_NAMES)
-      const [{ THREE, addons }, soundLib, controlsLib] = await Promise.all([is3D ? loadThree() : {}, wantsSound && loadSibling('sound'), wantsControls && loadSibling('controls')])
+      const wantsSound = usesAny(code, SOUND_NAMES), wantsControls = usesAny(code, DIAL_NAMES)
+      const [{ THREE, addons }, soundLib, controlsLib] = await Promise.all([is3D ? loadThree() : {}, wantsSound && loadSibling('sound'), wantsControls && loadSibling('dials')])
       if (!live()) return
       // three.js loaders take the same table (one scene to a page when it is used).
       if (THREE && files) THREE.DefaultLoadingManager.setURLModifier((url) => files[url] || url)
@@ -1712,8 +1721,9 @@ export function runScene(container, options = {}) {
         cleanup.push(() => views.disconnect())
       }
 
-      // --- SOUND. The functions (synths.js's createSound) only write commands; a batch of them goes to a player on
-      // this page, made here so that it can be paused and closed with the scene, or to the host (`options.sound.send`).
+      // --- SOUND. The functions (synths.js's createSound) only write commands; a batch of them goes to the page's
+      // player, which every scene on the page shares (one sound card, one engine, each scene stopped and paused alone),
+      // or to the host (`options.sound.send`).
       // The player is made before the scene runs, so the engine is loaded by the time of the first tap: browsers keep
       // a page silent until a tap, a click or a key press, and the player listens for one anywhere on the page (on the
       // way down to the canvas, so the scene's own handlers hear the same event after it).
@@ -1723,33 +1733,30 @@ export function runScene(container, options = {}) {
       let hush = null
       if (soundLib) {
         const host = options.sound || {}
-        const mine = host.send ? null : (player = soundLib.createPlayer(host))
-        const sound = soundLib.createSound({
-          sound: mine || host,
-          resolve: at, ids: host.ids, ...(host.readBytes ? { read: (path) => host.readBytes(path) } : null),
-        })
-        let quiet = false
+        // (`read` is the host player's own, part of the transport; the rest are the player's options.)
+        const { send, read, readBytes, ...playing } = host
+        const sound = voice = soundLib.createSound({ ...playing, sound: send ? host : undefined, resolve: at, read: readBytes && ((path) => host.readBytes(path)) })
+        let quiet = null
         hush = () => {
           const now = !inView || document.hidden
           if (now === quiet) return
           quiet = now
-          if (mine) quiet ? mine.pause() : mine.resume()
-          else (quiet ? host.pause : host.resume)?.call(host)
+          quiet ? sound.pause() : sound.resume()
         }
         listen(document, 'visibilitychange', hush)
+        // Said once at the start too: that is what makes the player, or joins the page's.
         hush()
         cleanup.push(() => {
           sound.close()
-          mine?.close()
-          if (player === mine) player = null
+          if (voice === sound) voice = null
         })
         for (const n of bothSpellings(SOUND_NAMES)) more[n] = sound[n] ?? sound[camel(n)] ?? soundLib[n] ?? soundLib[camel(n)]
       }
       // --- ON-SCREEN CONTROLS (dial, slider, keyboard, scope…): drawn on a canvas of their own over the scene's, and gone with the scene.
       if (controlsLib) {
-        panel = controlsLib.controls(canvas, { fresh: true })
+        panel = controlsLib.dials(canvas, { fresh: true })
         cleanup.push(() => panel.panel?.close())
-        for (const n of bothSpellings(CONTROL_NAMES)) if (!(n in more)) more[n] = panel[n] ?? panel[camel(n)] ?? controlsLib[n] ?? controlsLib[camel(n)]
+        for (const n of bothSpellings(DIAL_NAMES)) if (!(n in more)) more[n] = panel[n] ?? panel[camel(n)] ?? controlsLib[n] ?? controlsLib[camel(n)]
       }
       let last = 0
       let counted = 0
@@ -1846,7 +1853,7 @@ export function runScene(container, options = {}) {
   start()
   return {
     get canvas() { return canvas },
-    get sound() { return player },
+    get sound() { return voice?.player ?? null },
     stop() { run++; stopRun() },
     showFps(on) { wantFps = !!on; fitMeter() },
     restart(next) { if (next != null) source = next; start() },

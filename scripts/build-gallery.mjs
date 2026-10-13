@@ -28,13 +28,16 @@ const PYCTURES = 'https://www.circuitry.dev/pyctures'
 // [file, title, what it is, how to play with it]. Shown in this order.
 const SCENES = [
   ['solar_system.js', 'Solar System', 'Planets in turning groups, a moon, a light at the sun and 2,000 stars.', 'Drag to look around.'],
-  ['star_catcher.js', 'Star Catcher', 'A 2D game with emoji sprites, a score and lives.', 'Arrow keys or drag. Catch the stars, dodge the rocks.'],
+  ['star_catcher.js', 'Star Catcher', 'A 2D game with emoji sprites, a score, lives and sound effects.', 'Arrow keys or drag. Catch the stars, dodge the rocks.'],
+  ['synth_panel.js', 'Synth Panel', 'A synth with dials for its settings, the wave it is making, a meter and a piano keyboard.', 'Play the keys with the mouse, your fingers or A S D F G H J. Drag a dial to turn it.'],
   ['space_rocks.js', 'Space Rocks', 'Steer a ship and shoot the rocks, which break in two.', 'Left and right turn, up flies, space shoots. Or hold to fly to your finger, and tap to shoot.'],
   ['brick_breaker.js', 'Brick Breaker', 'A bat, a ball and a wall of bricks.', 'Arrow keys or drag. Clear the wall to win.'],
   ['bat_and_ball.js', 'Bat and Ball', 'One player against the computer. First to 5 wins.', 'Up and down, or drag.'],
   ['snake.js', 'Snake', 'A game on a grid: eat the apples and grow. Your best score is kept.', 'Arrow keys, or tap the side to turn to.'],
   ['high_score.js', 'High Score', 'Catch the star as often as you can in 10 seconds. The best score is still there next time: save() and load().', 'Click or tap the star.'],
   ['top_scores.js', 'Top Scores', 'Every game goes into a SQLite database, and the five best are shown: openDatabase().', 'Click or tap the star. When the time is up, click to play again.'],
+  ['tune.js', 'Tune', 'A melody, a bass line and drums, each a line of notes: playNotes().', 'Click or tap to start it, and again to stop.'],
+  ['arpeggio.js', 'Arpeggio', 'Chords from one voice, as a Commodore 64 played them, over a chip bass and drums: startArp().', 'Click or tap to start it, and again to stop.'],
   ['cube_spiral.js', 'Cube Spiral', '400 cubes in a rainbow spiral, turning.', 'Drag to look around.'],
   ['cube_dodge.js', 'Cube Dodge', 'A 3D game with shadows, fog and the keyboard.', 'Arrow keys or drag. Dodge the red blocks.'],
   ['bouncing_balls.js', 'Bouncing Balls', 'A 2D animation with trails and hsl() colours.', 'Click or tap to add a ball.'],
@@ -107,6 +110,8 @@ async function build() {
   await cp(join(ROOT, 'pictures.js'), join(SITE, 'pictures', 'pictures.js'))
   await cp(join(ROOT, 'three'), join(SITE, 'pictures', 'three'), { recursive: true })
   await cp(join(ROOT, 'sqlite'), join(SITE, 'pictures', 'sqlite'), { recursive: true })
+  await cp(join(ROOT, 'sound'), join(SITE, 'pictures', 'sound'), { recursive: true })
+  await cp(join(ROOT, 'dials'), join(SITE, 'pictures', 'dials'), { recursive: true })
   if (existsSync(join(EXAMPLES, 'textures'))) await cp(join(EXAMPLES, 'textures'), join(SITE, 'textures'), { recursive: true })
   if (existsSync(join(ROOT, 'docs', 'images', 'gallery'))) await cp(join(ROOT, 'docs', 'images', 'gallery'), join(SITE, 'shots'), { recursive: true })
 
