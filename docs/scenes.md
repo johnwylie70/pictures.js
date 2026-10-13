@@ -254,6 +254,16 @@ Things to know:
 - **Every class that extends `Scene` plays**, in the order written, including one that extends another scene.
 - **Name scenes at the top level.** `scene("name", …)` inside a function that is called later is too late.
 
+## For an app that records
+
+A recorder gets a transition right if it does three things.
+
+1. **Draw every canvas in the scene's box, in the order they are in the page**, each over the whole frame. During a transition there is one more canvas straight after the scene's own (`<canvas data-pictures-transition="crossfade">`), the same size, and what it shows is in its pixels: the old scene at an alpha for a crossfade, the part a wipe has not reached, both scenes for a slide, the colour of a fade. No canvas has an opacity, a clip or a transform set on it, so there is no style to copy.
+2. **Step time through the frames.** A transition moves only by the time between one frame and the next, the same `dt` that `update(dt)` is given, which pictures.js takes from the times `requestAnimationFrame` hands its frames (never more than a tenth of a second for one frame). A recorder that hands the frames its own times steps the transition with the scene. Nothing in a transition reads the clock or uses a timer.
+3. **Draw after the frame.** The transition's canvas is drawn when the scene's `draw()` has returned, in the same turn of the page. In a 3D program that is also the only moment the scene's own canvas can be read.
+
+`runScene` gives back `transition`: `null`, or the transition going on now, with `name`, `progress` (0 to 1), `layer` (that canvas) and `draw(ctx)`, which paints it over the whole of another canvas. The scrubber is not a canvas and is not part of the picture.
+
 ## If you know Pymations
 
 [Pymations](https://github.com/johnwylie70/pymations) has scenes too, and the words here are the same wherever the thing is the same.

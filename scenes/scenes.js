@@ -69,9 +69,10 @@ const transitionName = (name) => {
  * the transition moves only by the `dt` it is stepped with, which is the scene's own frame time: a page
  * that is stepped a frame at a time steps the transition with it.
  *
- * `real` says the scene's canvas can be read when `paint` is called (always in 2D; in 3D only straight after
- * the scene has drawn). A slide then draws the new scene too, moved, and covers the canvas whole; where the
- * canvas cannot be read, a slide moves the scene's canvas itself with a style, which a recorder will not see.
+ * `real` says the scene's canvas can be read whenever `paint` is called (a 2D canvas; a 3D one only straight
+ * after the scene has drawn on it). A slide draws the new scene too, moved, and covers the canvas whole; where
+ * the canvas cannot be read at any time, `caught()` is called straight after each time the scene has drawn, and
+ * keeps a copy for the slide to draw from until the next.
  *
  * `running` is the transition now, or null: `{ name, seconds, progress, from, to, layer, draw(ctx),
  * hold(progress), release() }`. `draw(ctx)` paints the layer as it is now over the whole of another canvas's
@@ -86,7 +87,6 @@ export function transitionLayer(container, canvas, more = {}, data = 'pictures')
     run = null
     try { was.own?.end?.() } catch (e) { console.error(e) }
     was.layer.remove()
-    canvas.style.transform = ''
   }
   const paint = () => {
     if (!run || run.own) return
@@ -104,9 +104,7 @@ export function transitionLayer(container, canvas, more = {}, data = 'pictures')
       g.fillRect(0, 0, w, h)
     } else if (SLIDES[name]) {
       const [x, y] = SLIDES[name], dx = Math.round(x * p * w), dy = Math.round(y * p * h)
-      if (run.real) {
-        try { g.drawImage(canvas, dx - x * w, dy - y * h, w, h) } catch (e) { /* a canvas with no size */ }
-      } else canvas.style.transform = `translate(${-x * (1 - p) * 100}%, ${-y * (1 - p) * 100}%)`
+      try { g.drawImage(run.real ? canvas : run.kept, dx - x * w, dy - y * h, w, h) } catch (e) { /* a canvas with no size */ }
       g.drawImage(from, dx, dy)
     } else {
       // A wipe: the part of the old picture the edge has not reached.
@@ -138,7 +136,7 @@ export function transitionLayer(container, canvas, more = {}, data = 'pictures')
       try { from.getContext('2d').drawImage(canvas, 0, 0) } catch (e) { /* a canvas with no size yet: the picture is blank */ }
       layer.dataset[`${data}Transition`] = name
       layer.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none'
-      const mine = run = { name, seconds, colour, real, from, to: canvas, layer, g: layer.getContext('2d'), progress: 0, shown: 0, held: false, at: 0, own: more[name] || null,
+      const mine = run = { name, seconds, colour, real, kept: !real && SLIDES[name] ? copy() : null, from, to: canvas, layer, g: layer.getContext('2d'), progress: 0, shown: 0, held: false, at: 0, own: more[name] || null,
         draw(ctx) { ctx.drawImage(layer, 0, 0, ctx.canvas.width, ctx.canvas.height) },
         hold(p) { mine.held = true; mine.progress = p; if (run === mine) { show(p); paint() } },
         release() { mine.held = false; mine.at = mine.progress * seconds } }
@@ -156,6 +154,13 @@ export function transitionLayer(container, canvas, more = {}, data = 'pictures')
       if (p >= 1) finish()
     },
     paint,
+    /** The scene has just drawn on its canvas: keep the picture, for a slide over a canvas that cannot be read later. */
+    caught() {
+      if (!run || !run.kept) return
+      const g = run.kept.getContext('2d')
+      g.clearRect(0, 0, run.kept.width, run.kept.height)
+      try { g.drawImage(canvas, 0, 0, run.kept.width, run.kept.height) } catch (e) { /* a canvas with no size */ }
+    },
     finish,
   }
 }

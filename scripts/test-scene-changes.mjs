@@ -363,6 +363,10 @@ function onSeek(t) { log.push("seek " + t.toFixed(1)) }
   const untimed = await play(page, 'class A extends Scene { length = 1; setup() { window.result = !!document.querySelector(".pictures-bar") } }\nclass B extends Scene { }\n')
   say(got === false && untimed === false, name, 'no scrubber with controls: false, nor for a program whose length is not known (a scene the program ends itself)', { got, untimed })
 
+  // config() alone, at the top of a file that has no scene yet, is not a mistake.
+  got = await play(page, 'config({ transition: "crossfade" })\nfunction draw() { background("black"); window.result = [window.scene.scenes, typeof Scene] }\n')
+  say(same(got, [null, 'function']), name, 'config() alone at the top of a file with no scene yet runs: the file is one scene, as before', got)
+
   // --- a file with no scenes
   await page.goto(`${at}/test.html`)
   asked.length = 0
