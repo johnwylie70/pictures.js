@@ -1,11 +1,19 @@
 /**
- * THE TESTS MAKE NO SOUND IN THE ROOM. `quietly(playwright.chromium, 'chromium', options)` starts a browser as
+ * THE TESTS MAKE NO SOUND IN THE ROOM, AND ASK FOR NO MICROPHONE. `quietly(playwright.chromium, 'chromium', options)` starts a browser as
  * `launch` does, with Chromium's output muted. WebKit has no such switch, so in every page and frame of every
  * browser whatever is connected to the loudspeaker is connected instead to a gain of nothing that is connected to
  * it: the sound card still pulls the graph along, and every measurement is taken from the nodes before it, so
  * nothing that is measured changes. (It is synths.js's own way, from its scripts/test-browser.mjs.)
  */
 const QUIET = `(() => {
+  // NOR IS THE COMPUTER'S MICROPHONE EVER ASKED FOR: a page that asks (an example that begins with useMicrophone())
+  // is told there is none, before the browser or the operating system can put up a question. A test of the
+  // microphone puts its own pretend one in this one's place.
+  try {
+    const none = () => Promise.reject(new DOMException('There is no microphone in a test', 'NotFoundError'))
+    if (navigator.mediaDevices) navigator.mediaDevices.getUserMedia = none
+    else Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: none, enumerateDevices: async () => [], addEventListener() {}, removeEventListener() {} } })
+  } catch (e) { /* a browser that will not have it replaced has no microphone to ask for either */ }
   if (typeof AudioNode === 'undefined' || typeof AudioDestinationNode === 'undefined') return
   const connect = AudioNode.prototype.connect
   const silent = new WeakMap()
@@ -24,7 +32,7 @@ const QUIET = `(() => {
 })()`
 
 export async function quietly(type, name, options = {}) {
-  const browser = await type.launch(name === 'chromium' ? { ...options, args: [...(options.args || []), '--mute-audio'] } : options)
+  const browser = await type.launch(name === 'chromium' ? { ...options, args: [...(options.args || []), '--mute-audio', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] } : options)
   const newContext = browser.newContext.bind(browser)
   // Every context is given the gain of nothing before anything else of a test's own (a page made straight from the browser has a context of its own).
   browser.newContext = async (...args) => {
