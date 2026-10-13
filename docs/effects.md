@@ -170,6 +170,8 @@ The scene's canvas is handed to the graphics card once a frame, and each effect 
 
 On an iPad or iPhone the hand-over is the dear part, because Safari reads every pixel of the canvas back first. So the effects work on fewer pixels there (about a 1080p picture's worth, and fewer still if frames are late) and the result is stretched to fit. `effectsQuality(1)` is every pixel, `effectsQuality(0.5)` half each way, and `effectsQuality("auto")` is what they do by themselves.
 
+**On a phone or a tablet the speed has not been measured.** What has been measured is Safari's engine on a Mac, at an iPad's pixels (2360 x 1640) and a phone's (1170 x 2532): 9 to 12 milliseconds a frame for a chain of effects at every pixel, and 5 to 6 with `effectsQuality("auto")`, where a frame at 60 a second has 16. A real iPad or iPhone has a slower graphics card than that Mac, so expect less; if a scene is slow there, `effectsQuality(0.5)` is the first thing to try, and fewer effects the second.
+
 Every effect is worked out from the picture, its own last frame, its settings and the scene's clock, never from the time of day; grain and glitches come from a seed. So a scene stepped one frame at a time by a video recorder gives exactly the pictures it should, the same every time.
 
 On a page of your own with no recorder, `const film = await recordVideo({ seconds: 5, fps: 60 })` gives a WebM with every frame exactly a sixtieth of a second apart, and `saveVideo(film, "my-scene.webm")` downloads it.
