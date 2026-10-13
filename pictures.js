@@ -701,7 +701,9 @@ function syntaxLine(source) {
  * function and then the current scene's. The runtime's `hooks` is replaced by that table, so no call site
  * here knows about scenes. Everything else is written in scenes/scenes.js.
  */
+/* SCENE_NAMES:BEGIN */
 const SCENE_NAMES = ['Scene', 'scene', 'go', 'nextScene', 'restart', 'section', 'config']
+/* SCENE_NAMES:END */
 const usesScenes = (code) => /\bextends\s+Scene\b/.test(code) || usesAny(code, SCENE_NAMES)
 /** Where the scenes are written, in order: the name of each class that extends another, and '' for each `scene(` call. */
 const scenesWritten = (code) => [...code.matchAll(/\bclass\s+([A-Za-z_$][\w$]*)\s+extends\s+[\w$.]+|(?:^|[^.\w$])scene\s*\(/g)].map((m) => m[1] || '')
