@@ -11,9 +11,8 @@
  * analyser on it: `loudest()` is the largest sample seen over some time. The browsers are started as a person
  * finds them, with sound kept off until a tap, so that the tap is tested too.
  *
- * THE AUDIO WORKLET. Some Chromium builds, run without a window inside a locked-down shell, never finish loading
- * any audio worklet (`addModule` neither succeeds nor fails). Each browser is asked first with a one-line worklet.
- * Where it will not load, the cases that listen are run with the engine on the page's thread (`sound: { fallback:
+ * THE AUDIO WORKLET. Playwright holds Chromium's worklets back, and `letWorkletsRun` lets them go. Each browser is
+ * still asked first with a one-line worklet. Where one will not load, the cases that listen are run with the engine on the page's thread (`sound: { fallback:
  * 'always' }`, the same engine and the same commands), the case that needs the worklet itself is said to be skipped,
  * and so is the listening half of the built folder's, which has no options to pass.
  *
@@ -170,12 +169,40 @@ const middle = (page, kind) => page.evaluate((kind) => {
   return [box.left + item.x + item.w / 2, box.top + item.y + item.h / 2]
 }, kind)
 
+// THE AUDIO WORKLET UNDER PLAYWRIGHT. Playwright starts every Chromium target waiting for a debugger and lets pages
+// and workers go, but not worklets, so an audio worklet's module never loads (the same browser started by hand loads
+// it). A second session on the page lets worklets run, in the page and in frames inside it. (From synths.js's tests.)
+async function letWorkletsRun(page) {
+  const cdp = await page.context().newCDPSession(page)
+  let id = 0
+  // `path` is the chain of sessions from the page down to a frame inside it.
+  const send = (path, method, params = {}) => {
+    let message = { method, params }
+    for (let i = path.length - 1; i >= 0; i--) message = { method: 'Target.sendMessageToTarget', params: { sessionId: path[i], message: JSON.stringify({ id: ++id, ...message }) } }
+    return cdp.send(message.method, message.params).catch(() => {})
+  }
+  const seen = (path, method, params) => {
+    if (method === 'Target.attachedToTarget') {
+      const child = [...path, params.sessionId]
+      if (params.targetInfo.type === 'worklet') send(child, 'Runtime.runIfWaitingForDebugger')
+      else send(child, 'Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: false })
+    } else if (method === 'Target.receivedMessageFromTarget') {
+      const inner = JSON.parse(params.message)
+      if (inner.method) seen([...path, params.sessionId], inner.method, inner.params)
+    }
+  }
+  cdp.on('Target.attachedToTarget', (params) => seen([], 'Target.attachedToTarget', params))
+  cdp.on('Target.receivedMessageFromTarget', (params) => seen([], 'Target.receivedMessageFromTarget', params))
+  await send([], 'Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: false })
+}
+
 for (const name of ['chromium', 'webkit']) {
   let browser
   try { browser = await playwright[name].launch() } catch { console.log(`${name}: not installed, skipped`); continue }
   const context = await browser.newContext({ viewport: { width: 800, height: 600 } })
   await context.addInitScript(LISTEN)
   let page = await context.newPage()
+  if (name === 'chromium') await letWorkletsRun(page)
   let got
   // Will this browser load an audio worklet at all? (See THE AUDIO WORKLET.)
   await page.goto(`${at}/test.html`)
@@ -344,6 +371,7 @@ for (const name of ['chromium', 'webkit']) {
 
   // --- a host that takes the commands: it is sent the batches, and the page plays nothing
   page = await context.newPage()
+  if (name === 'chromium') await letWorkletsRun(page)
   requests = asked(page)
   const HOST = '(() => { const host = window.host = { batches: [] }; return { sound: { send: (batch) => host.batches.push(batch) } } })()'
   await begin(page, LASER + 'playNotes("C4 E4", 0.2)\nconst lead = makeSynth("lead")\nlead.cutoff = 700\n', HOST)
@@ -381,6 +409,7 @@ for (const name of ['chromium', 'webkit']) {
 
   // --- what pictures build made, from a static server
   page = await context.newPage()
+  if (name === 'chromium') await letWorkletsRun(page)
   requests = asked(page)
   const problems = []
   page.on('pageerror', (e) => problems.push(String(e)))
