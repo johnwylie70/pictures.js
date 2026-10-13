@@ -378,6 +378,15 @@ stopSound()         // stops everything that is sounding or waiting to sound
 
 Sound stops by itself when the scene stops or is run again. Several scenes on one page share one sound card, and each is stopped and paused alone. It is paused while the scene is scrolled out of view or its tab is in the background, as the frames are, and carries on when you come back.
 
+### If the sound clicks
+
+```js
+setSoundBuffer("large")        // "small" (1024 frames), "medium" (2048), "large" (4096), "auto", or a number of frames
+const now = soundBuffer()      // { frames: 4096, delay: 179, thread: "page", underruns: 0, setting: 4096 }
+```
+
+A page that is not served over https (a page on your own computer opened on a phone or an iPad by the computer's address) makes its sound on the page's own thread, a buffer at a time, and clicks when the page is busy for longer than a buffer lasts. A larger buffer rides over that and is heard later: `"large"` is about a fifth of a second from a key to its note, `"small"` a twentieth. `"auto"` lets the library choose, and double it once if it keeps clicking. It may be called before the first sound or at any time. `delay` is the milliseconds from a key to its note, `underruns` counts the clicks, and `thread` is `"page"` there and `"audio"` on an https page, where there is nothing to fix and the same call sets how far ahead everything is scheduled instead.
+
 ## The Python spellings
 
 Every name has its Python spelling too, so a scene comes across from [Pyctures](from-python.md) with little more than its syntax changed: `play_sound`, `play_note`, `play_notes`, `make_synth`, `load_sample`, `stop_sound`, `set_volume`, `set_tempo`, `sound_time`, `on_midi_note`, `on_midi_control`, `send_midi_note`, `midi_devices`, `lead.play_from_midi()`, `use_microphone`, `record_sound`, `start_recording`, `record_output`, `save_sound`, `take.on_done(…)`, `take.sound_like(mic)`. Settings too: `lead.vibrato_rate = 6`.

@@ -606,6 +606,7 @@ Explained in [Sound and music](sound.md).
 | `beats(n)` | How many seconds that many beats last | `beats` |
 | `beat()` | Which beat it is now | `beat` |
 | `soundTime()` | The sound clock, in seconds: what `{ at }` is read against | `sound_time` |
+| `setSoundBuffer(size)`, `soundBuffer()` | How much sound is made at a time (`"small"`, `"medium"`, `"large"`, `"auto"`, or frames), for a page that clicks; and what it is now | `set_sound_buffer`, `sound_buffer` |
 | `noteNumber(note)` | A note's number: `noteNumber("A4")` is 69 | `note_number` |
 | `soundNames()`, `synthNames()`, `settingNames()` | Lists of the game sounds, the ready-made synths and a synth's settings | `sound_names`, `synth_names`, `setting_names` |
 | `playSong(path, options)`, `stopSong()` | A song from a `.mod` or `.xm` file beside the scene. Gives a song with `pause()`, `resume()`, `seek(part)`, `stop()`, `volume` and `position`, and `mute(channel)`, `solo(channel)`, `loopPattern()` (`loop_pattern`) and `replace(song)` | `play_song`, `stop_song` |
