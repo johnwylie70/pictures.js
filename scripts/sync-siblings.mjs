@@ -2,7 +2,7 @@
 /**
  * Brings the two sibling libraries into this package, and keeps the names a scene is given in step with them:
  *
- *   sound/       synths.js, its audio worklet's file, the engine (synths_core.wasm) and its LICENSE, from ../synths.js
+ *   sound/       synths.js, its MIDI (synths-midi.js), its audio worklet's file, the engine (synths_core.wasm) and its LICENSE, from ../synths.js
  *   dials/       dials.js (the on-screen controls) and its LICENSE, from ../dials.js
  *   pictures.js  the lists between the SOUND_NAMES and DIAL_NAMES marks: every function the vendored copy gives
  *                a scene, read out of the copy itself, so a function a sibling gains is a scene's the next time this runs
@@ -27,11 +27,11 @@ const keep = check || process.argv.includes('--keep')
 
 // What is copied: [the sibling's folder, the folder here, its files].
 const COPIES = [
-  ['synths.js', 'sound', ['synths.js', 'synths-worklet.js', 'synths_core.wasm', 'LICENSE']],
+  ['synths.js', 'sound', ['synths.js', 'synths-midi.js', 'synths-worklet.js', 'synths_core.wasm', 'LICENSE']],
   ['dials.js', 'dials', ['dials.js', 'LICENSE']],
 ]
 // What createSound() has that is the host's to call, not a scene's.
-const HOSTS_OWN = new Set(['flush', 'close', 'player', 'pause', 'resume'])
+const HOSTS_OWN = new Set(['flush', 'close', 'player', 'pause', 'resume', 'settled', 'useMidiHooks'])
 // What the sound module exports that a scene is given as well as createSound()'s functions.
 const SOUND_EXTRA = ['noteNumber']
 // What the dials module exports that is not a control.
