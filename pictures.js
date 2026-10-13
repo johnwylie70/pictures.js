@@ -65,6 +65,10 @@
  *   dial, slider, button,   controls on the scene, laid out for you: `const speed = dial("speed", 0, 10)` is a number to
  *   toggle, select,         read (`speed.value`), `dial("cutoff", lead, "cutoff")` is that setting of a synth,
  *   keyboard, scope, meter  `keyboard(lead)` plays it and `scope(lead)` draws its wave. Also label, row, layout, theme, over
+ *   Scene, scene, go,       a program in several scenes (see SCENES): `class Title extends Scene { draw() { … } }` is one, with the
+ *   nextScene, restart,     functions below as its methods; `go("Game")`, `nextScene()` and `restart()` change scene, `length = 12`
+ *   section, config         ends one by itself, `transition = "crossfade"` is how it arrives, and sceneTime, sceneProgress and
+ *                           sceneName say where it is
  *
  * and these functions are called if the scene defines them:
  *
@@ -77,6 +81,7 @@
  *   onTouchStart(touch), onTouchMove(touch), onTouchEnd(touch, cancelled)
  *   onWheel(amount), onPinch(scale, change)
  *   onStop()                when the scene is stopped or run again: let go of what it made itself
+ *   onSeek(seconds)         when the scrubber of a program of timed scenes is moved (see SCENES)
  *
  * The scene's code calls the canvas directly: nothing is recorded or replayed,
  * so it runs at the browser's own speed. The Python spellings (`pixel_ratio`,
@@ -119,6 +124,7 @@ const HOOKS = {
   touchEnd: ['onTouchEnd', 'on_touch_end'],
   wheel: ['onWheel', 'on_wheel'], pinch: ['onPinch', 'on_pinch'],
   stop: ['onStop', 'on_stop'],
+  seek: ['onSeek', 'on_seek'],
 }
 /**
  * MIDI's functions a scene may define: `function onMidiNote(note, velocity, channel) { … }` is called when a key of a
@@ -376,17 +382,22 @@ export function guardLoops(source) {
  * is the MIDI functions the scene defines itself (`midiHooksOf`): each is
  * handed back as a hook when it is the scene's own and not the sound
  * library's function of the same name, which the outer function was given.
+ * `scenes` is the classes a file with scenes writes (see SCENES), handed
+ * back with the hooks; such a file has `sceneTime`, `sceneProgress` and
+ * `sceneName` beside `width` and `height`, set the same way.
  */
-function compile(source, name, guarded, more = [], midi = []) {
+function compile(source, name, guarded, more = [], midi = [], scenes = null) {
   const found = Object.entries(HOOKS).map(([hook, names]) =>
     `${hook}: ${names.map((n) => `typeof ${n} === 'function' ? ${n} : `).join('')}undefined`).join(', ')
   const lib = midi.length ? `; const __lib = { ${midi.map((n) => `${n}: typeof ${n} === 'function' ? ${n} : 0`).join(', ')} }` : ''
   const heard = Object.entries(MIDI_HOOKS).map(([hook, names]) => [hook, names.filter((n) => midi.includes(n))]).filter(([, names]) => names.length).map(([hook, names]) =>
     `, ${hook}: ${names.map((n) => `typeof ${n} === 'function' && ${n} !== __lib.${n} ? ${n} : `).join('')}undefined`).join('')
-  const body = `let width = 0, height = 0, pixelRatio = 1, pixel_ratio = 1; __size((w, h, r) => { width = w; height = h; pixelRatio = pixel_ratio = r })${lib}
+  const staged = scenes ? `; let sceneTime = 0, scene_time = 0, sceneProgress = 0, scene_progress = 0, sceneName = '', scene_name = ''; __scene((t, p, n) => { sceneTime = scene_time = t; sceneProgress = scene_progress = p; sceneName = scene_name = n })` : ''
+  const classes = scenes ? `, __scenes: [${scenes.map((n) => `typeof ${n} === 'function' ? ${n} : 0`).join(', ')}]` : ''
+  const body = `let width = 0, height = 0, pixelRatio = 1, pixel_ratio = 1; __size((w, h, r) => { width = w; height = h; pixelRatio = pixel_ratio = r })${lib}${staged}
 return (async () => {
 ${guarded ? guardLoops(source) : source}
-;return { ${found}${heard} }
+;return { ${found}${heard}${classes} }
 })()
 //# sourceURL=${name}`
   return new AsyncFunction(...GIVEN, ...more, '__size', body)
@@ -557,20 +568,20 @@ const midiHooksOf = (code) => [...new Set([...code.matchAll(MIDI_DEFINED)].map((
 /** Which of the parts that are loaded on first use a scene's text asks for. `pictures build` copies the same ones. */
 export function sceneUses(source) {
   const code = codeOf(source)
-  return { three: uses3D(source), sound: usesAny(code, SOUND_NAMES) || midiHooksOf(code).length > 0, dials: usesAny(code, DIAL_NAMES) }
+  return { three: uses3D(source), sound: usesAny(code, SOUND_NAMES) || midiHooksOf(code).length > 0, dials: usesAny(code, DIAL_NAMES), scenes: usesScenes(code) }
 }
 
 /**
  * A sibling library, loaded the first time a scene uses it: the module in its folder beside this file.
  * A failure is not remembered, so the next scene tries again.
  */
-const SIBLINGS = { sound: 'sound/synths.js', dials: 'dials/dials.js' }
+const SIBLINGS = { sound: 'sound/synths.js', dials: 'dials/dials.js', scenes: 'scenes/scenes.js' }
 const siblings = {}
 function loadSibling(which) {
   const address = new URL(SIBLINGS[which], BASE).href
   siblings[which] ??= import(address).catch((e) => {
     delete siblings[which]
-    throw new Error(`This scene uses ${which === 'sound' ? 'sound' : 'on-screen controls'}, and that part of pictures.js could not be loaded: ${address} (${e?.message ?? e})`)
+    throw new Error(`This scene uses ${which === 'sound' ? 'sound' : which === 'scenes' ? 'scenes' : 'on-screen controls'}, and that part of pictures.js could not be loaded: ${address} (${e?.message ?? e})`)
   })
   return siblings[which]
 }
@@ -677,6 +688,25 @@ function syntaxLine(source) {
 }
 
 /**
+ * SCENES: a program in several parts, each starting empty, played one after another or switched by the
+ * program: `class Title extends Scene { draw() { … } }`, `scene("title", { draw })`, `go("Game")`,
+ * `nextScene()`, `restart()`, `length = 12`, `transition = "crossfade"`, `section("name")`, `config({ … })`,
+ * and `sceneTime`, `sceneProgress` and `sceneName`. It is a part of its own, `scenes/scenes.js` beside this
+ * file, loaded only for a file that uses one of those names (`usesScenes` asks the scene's text, as sound and
+ * the controls are asked for): a file that uses none is one unnamed scene, compiled and run exactly as before
+ * there were any, and fetches nothing more.
+ *
+ * HOW IT IS WIRED. The part's `directScenes` makes the names; when the file's top level has run, its `begin`
+ * is handed the functions the file defined and gives back a table of the same shape that calls the file's
+ * function and then the current scene's. The runtime's `hooks` is replaced by that table, so no call site
+ * here knows about scenes. Everything else is written in scenes/scenes.js.
+ */
+const SCENE_NAMES = ['Scene', 'scene', 'go', 'nextScene', 'restart', 'section', 'config']
+const usesScenes = (code) => /\bextends\s+Scene\b/.test(code) || usesAny(code, SCENE_NAMES)
+/** Where the scenes are written, in order: the name of each class that extends another, and '' for each `scene(` call. */
+const scenesWritten = (code) => [...code.matchAll(/\bclass\s+([A-Za-z_$][\w$]*)\s+extends\s+[\w$.]+|(?:^|[^.\w$])scene\s*\(/g)].map((m) => m[1] || '')
+
+/**
  * Run a scene in `container`.
  *
  * @param {HTMLElement} container  The canvas fills it and follows its size.
@@ -740,9 +770,18 @@ function syntaxLine(source) {
  *   `keyboard` gives the scene the keyboard from the start (a scene that is the whole page).
  *   `crossOrigin` ('anonymous') is set on the images `loadImage` makes from the scene's own files, for a host
  *   whose page is on another origin than those files: the canvas can then still be read back, and WebGL may use the picture.
- * @returns {{ stop(): void, restart(source?: string): void, showFps(on: boolean): void, canvas: HTMLCanvasElement, sound: object | null }}
+ *   `controls: false` leaves out the scrubber a sequence of timed scenes is given (see SCENES); `onSections(sections, duration)` is
+ *   told each scene and section as `{ name, t, length, scene }` (t in seconds from the start, the whole length 0 when it is not
+ *   known), and `onScene(name, index)` each scene as it begins. The same are events on the container: `pictures-sections`, `pictures-scene`.
+ *   `transitions` adds transitions by name to the ones built in (see SCENES, "MORE TRANSITIONS").
+ * @returns {{ stop(): void, restart(source?: string): void, showFps(on: boolean): void, canvas: HTMLCanvasElement, sound: object | null,
+ *             scenes: object | null, transition: object | null }}
  *   `sound` is the page's sound player while a scene that uses sound runs (synths.js's: `state`, `context`, `node`; the scenes of
  *   a page share one), and null otherwise.
+ *   `scenes` is the file's scenes while a file that has them runs: `name` (the current one), `time`, `duration`, `sections`, `paused`,
+ *   `seek(seconds)`, `pause(on)` and `go(name)`; null for a file with none. `transition` is the transition going on now, or null:
+ *   `{ name, seconds, progress, from, to, hold(progress), release() }` (`from` is a canvas with the old scene's last picture, `to` the
+ *   scene's canvas).
  */
 export function runScene(container, options = {}) {
   let run = 0
@@ -778,6 +817,8 @@ export function runScene(container, options = {}) {
   let canvas = null
   let notice = null
   let voice = null // the sound functions of the scene that is running, when it uses sound
+  let stage = null // the director of the scenes of the file that is running, when it has scenes (see SCENES)
+  let changing = null // its transitions
   let stopRun = () => {}
   // The frame rate, top left, when asked for: frames counted over half a second, and under it
   // any parts of the frame the scene times itself with measure(). When a run ends its last
@@ -817,7 +858,7 @@ export function runScene(container, options = {}) {
   const fail = (error, at = 0, said = '') => {
     stopRun()
     const line = at || lineOf(error, name, String(source ?? '').split('\n').length)
-    const message = said || String(error?.message ?? error) + inHelper(error)
+    const message = said || (error?.picturesScene ? `In the scene ${error.picturesScene}: ` : '') + String(error?.message ?? error) + inHelper(error)
     console.error(error)
     status('error')
     options.onError?.(message, line)
@@ -861,6 +902,7 @@ export function runScene(container, options = {}) {
     const live = () => mine === run
     status('starting')
     notice?.remove()
+    delete container.dataset.picturesScene
     // A new canvas each run: a canvas keeps the kind of context it first gave.
     canvas?.remove()
     canvas = document.createElement('canvas')
@@ -902,7 +944,8 @@ export function runScene(container, options = {}) {
       // Sound and on-screen controls: asked of the scene's text, as three.js is, and loaded only for a scene that uses them.
       const midiHooks = midiHooksOf(code)
       const wantsSound = usesAny(code, SOUND_NAMES) || midiHooks.length > 0, wantsControls = usesAny(code, DIAL_NAMES)
-      const [{ THREE, addons }, soundLib, controlsLib] = await Promise.all([is3D ? loadThree() : {}, wantsSound && loadSibling('sound'), wantsControls && loadSibling('dials')])
+      const wantsScenes = usesScenes(code)
+      const [{ THREE, addons }, soundLib, controlsLib, scenesLib] = await Promise.all([is3D ? loadThree() : {}, wantsSound && loadSibling('sound'), wantsControls && loadSibling('dials'), wantsScenes && loadSibling('scenes')])
       if (!live()) return
       // three.js loaders take the same table (one scene to a page when it is used).
       if (THREE && files) THREE.DefaultLoadingManager.setURLModifier((url) => files[url] || url)
@@ -912,6 +955,7 @@ export function runScene(container, options = {}) {
       let looping = false
       let hooks = {}
       let panel = null // the on-screen controls, for a scene that uses them
+      let director = null // the scenes of a file that has them
       const call = (fn, ...args) => {
         if (!fn || !live()) return
         try {
@@ -1868,6 +1912,39 @@ export function runScene(container, options = {}) {
         cleanup.push(() => panel.panel?.close())
         for (const n of bothSpellings(DIAL_NAMES)) if (!(n in more)) more[n] = panel[n] ?? panel[camel(n)] ?? controlsLib[n] ?? controlsLib[camel(n)]
       }
+      // --- SCENES (see SCENES): only for a file that names one.
+      if (scenesLib) {
+        changing = scenesLib.transitionLayer(container, canvas, options.transitions)
+        cleanup.push(() => { changing.finish(); changing = stage = null })
+        director = scenesLib.directScenes({
+          hooks: HOOKS, container, written: scenesWritten(code), layer: changing, flat: !!ctx, bar: options.controls, sound: () => sound,
+          controls: (keep) => {
+            const made = panel?.panel
+            if (!keep) return new Set(made ? [...made.boxes, ...made.items] : [])
+            if (made) for (const item of [...made.boxes, ...made.items]) if (!keep.has(item)) made.remove(item)
+            return keep
+          },
+          empty: () => {
+            if (!ctx) return
+            // Sizing a canvas wipes it and puts every drawing setting back, where the browser has no reset() of its own.
+            if (typeof ctx.reset === 'function') ctx.reset()
+            else canvas.width = canvas.width
+            ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
+            fontSize = 0
+          },
+          report: (sections, duration) => {
+            options.onSections?.(sections, duration)
+            container.dispatchEvent(new CustomEvent('pictures-sections', { detail: { sections, duration } }))
+          },
+          told: (name, index) => {
+            container.dataset.picturesScene = name
+            options.onScene?.(name, index)
+            container.dispatchEvent(new CustomEvent('pictures-scene', { detail: { name, index } }))
+          },
+          fail: (e) => { if (live()) fail(e) },
+        })
+        Object.assign(more, director.names)
+      }
       let last = 0
       let counted = 0
       let countedSince = 0
@@ -1929,7 +2006,7 @@ export function runScene(container, options = {}) {
 
       let scene
       try {
-        scene = compile(source, name, !!options.stopStuckLoops, Object.keys(more), midiHooks)
+        scene = compile(source, name, !!options.stopStuckLoops, Object.keys(more), midiHooks, director && [...new Set(scenesWritten(code).filter(Boolean))])
       } catch (error) {
         // It would not compile: find the line before saying so.
         const where = error instanceof SyntaxError ? await syntaxLine(source) : { line: 0, past: false }
@@ -1958,6 +2035,9 @@ export function runScene(container, options = {}) {
       }
       if (hooks.setup) await hooks.setup()
       if (!live()) return
+      // A file with scenes: from here its functions and the current scene's are called through the director's table.
+      const staged = director?.begin(hooks)
+      if (staged) { hooks = staged; stage = director }
       if (hooks.draw || hooks.update) looping = true
       // Frames keep coming after the top level ends: a listener the scene added may still await one.
       else if (!Object.values(hooks).some(Boolean)) status('finished')
@@ -1970,6 +2050,8 @@ export function runScene(container, options = {}) {
   return {
     get canvas() { return canvas },
     get sound() { return voice?.player ?? null },
+    get scenes() { return stage },
+    get transition() { return changing?.running ?? null },
     stop() { run++; stopRun() },
     showFps(on) { wantFps = !!on; fitMeter() },
     restart(next) { if (next != null) source = next; start() },

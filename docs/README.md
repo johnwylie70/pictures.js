@@ -12,6 +12,7 @@ pictures.js is designed for projects made in [Circuitry Studio](https://www.circ
 
 - [Getting started](getting-started.md): what you need, your first scene, `run` and `build`
 - [How a program is shaped](program-shape.md): draw once, draw every frame, loops, input, reading values back
+- [Scenes](scenes.md): a title screen and a game, parts on a timer, transitions between them
 - [Drawing in 2D](drawing-2d.md)
 - [3D scenes](3d.md)
 - [Colours](colours.md)
