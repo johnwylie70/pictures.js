@@ -171,6 +171,14 @@ window.read = () => new Promise((done) => fxs.onFrame((fx) => { fxs.onFrame(null
   say(Array.isArray(got) && !got[5] && near(got[0].colour, [0, 255, 255], 2) && near(got[1].colour, [0, 255, 255], 3) && near(got[2].colour, [128, 255, 128], 5) && near(got[3].colour, [255, 255, 0], 3) && near(got[4].colour, [255, 255, 0], 2)
     && got[2].layers === 'scene,transition,effects' && got[4].layers === 'scene,effects', name, 'one scene changes to the next THROUGH the effects: the old picture and the new are mixed, then the effects are done to the mix, and they are shown over both', got)
 
+  // With sheet music: its layer is over the effects, so written notes are not blurred or folded, whichever is made first.
+  for (const first of ['music', 'effects']) {
+    got = await play(page, `function draw() { background("black"); circle(150, 100, 40, "gold") }
+${first === 'music' ? 'const sheet = showNotes("C4 E4 G4 C5", "quarter")\nglow(1)' : 'glow(1)\nconst sheet = showNotes("C4 E4 G4 C5", "quarter")'}
+setTimeout(async () => { for (let i = 0; i < 5; i++) await frame(); window.result = { layers: ${LAYERS} } }, 0)`)
+    say(!got.error && /^scene,effects,other/.test(got.layers || ''), name, `sheet music is drawn over the effects, not under them (the ${first} made first)`, got)
+  }
+
   // The same in 3D, by a slide: the old scene goes off to the left as the new one comes in from the right, all of
   // it in the transition's own pixels, and so all of it through the effects.
   got = await play(page, `const fxs = ${PIPE}
