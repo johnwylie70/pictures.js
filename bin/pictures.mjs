@@ -106,10 +106,10 @@ if (command === 'run') {
   if (/\b(THREE|addons)\s*\./.test(code)) await cp(join(HOME, 'three'), join(out, 'pictures', 'three'), { recursive: true })
   // SQLite goes with a scene that opens a database.
   if (/\bopen(Database|_database)\s*\(/.test(code)) await cp(join(HOME, 'sqlite'), join(out, 'pictures', 'sqlite'), { recursive: true })
-  // Sound and on-screen controls go with a scene that uses them, by the same test the scene is run with.
+  // Sound, on-screen controls, scenes and sheet music go with a scene that uses them, by the same test the scene is run with.
   const { sceneUses } = await import(pathToFileURL(join(HOME, 'pictures.js')).href)
   const uses = sceneUses(code)
-  for (const part of ['sound', 'dials', 'scenes']) if (uses[part]) await cp(join(HOME, part), join(out, 'pictures', part), { recursive: true })
+  for (const part of ['sound', 'dials', 'scenes', 'notation']) if (uses[part]) await cp(join(HOME, part), join(out, 'pictures', part), { recursive: true })
   await writeFile(join(out, 'index.html'), page(scene, 'pictures/pictures.js', false))
   console.log(`Built ${out} (open index.html from a web server, or put the folder on any static host)`)
 } else {

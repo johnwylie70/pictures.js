@@ -65,6 +65,9 @@
  *   dial, slider, button,   controls on the scene, laid out for you: `const speed = dial("speed", 0, 10)` is a number to
  *   toggle, select,         read (`speed.value`), `dial("cutoff", lead, "cutoff")` is that setting of a synth,
  *   keyboard, scope, meter  `keyboard(lead)` plays it and `scope(lead)` draws its wave. Also label, row, layout, theme, over
+ *   showNotes, makeSheet    sheet music (see SHEET MUSIC): `const page = showNotes("C4 E4 G4 - C5:2", "quarter")` writes a tune out as
+ *                           notes on a staff, `page.play()` plays it and lights each note as it sounds, `page.follow(song)` follows a
+ *                           song, `page.playAlong("wait")` waits for a learner, and `makeSheet()` is written a note at a time
  *   Scene, scene, go,       a program in several scenes (see SCENES): `class Title extends Scene { draw() { … } }` is one, with the
  *   nextScene, restart,     functions below as its methods; `go("Game")`, `nextScene()` and `restart()` change scene, `length = 12`
  *   section, config         ends one by itself, `transition = "crossfade"` is how it arrives, and sceneTime, sceneProgress and
@@ -114,6 +117,14 @@ const SOUND_NAMES = ['playSound', 'playNote', 'playNotes', 'makeSynth', 'loadSam
 /* DIAL_NAMES:BEGIN */
 const DIAL_NAMES = ['actionButton', 'arpPattern', 'busy', 'button', 'checkbox', 'choose', 'colorPicker', 'colourPicker', 'column', 'dial', 'dpad', 'dropdown', 'drumSeq', 'envelope', 'fader', 'grid', 'group', 'joystick', 'keyboard', 'label', 'layout', 'light', 'meter', 'modWheel', 'number', 'over', 'pads', 'page', 'pitchWheel', 'progress', 'radio', 'rangeSlider', 'readout', 'room', 'rotary', 'row', 'scope', 'select', 'slider', 'spacer', 'stepGrid', 'stepper', 'steps', 'textBox', 'theme', 'toggle', 'tranceGate', 'wheel', 'wrap', 'xyPad']
 /* DIAL_NAMES:END */
+/**
+ * SHEET MUSIC is a third sibling, notation.js, in the folder `notation` beside this file, loaded only for a scene that
+ * uses one of these names. Such a scene is given the sound as well, since its music is played and followed by the
+ * sound's clock. The list is written by scripts/sync-siblings.mjs from the copy in that folder (its `sceneNames`).
+ */
+/* NOTATION_NAMES:BEGIN */
+const NOTATION_NAMES = ['showNotes', 'makeSheet']
+/* NOTATION_NAMES:END */
 /** The functions a scene may define, Python spelling beside the JavaScript one. */
 const HOOKS = {
   setup: ['setup'], update: ['update'], draw: ['draw'],
@@ -568,20 +579,21 @@ const midiHooksOf = (code) => [...new Set([...code.matchAll(MIDI_DEFINED)].map((
 /** Which of the parts that are loaded on first use a scene's text asks for. `pictures build` copies the same ones. */
 export function sceneUses(source) {
   const code = codeOf(source)
-  return { three: uses3D(source), sound: usesAny(code, SOUND_NAMES) || midiHooksOf(code).length > 0, dials: usesAny(code, DIAL_NAMES), scenes: usesScenes(code) }
+  const notation = usesAny(code, NOTATION_NAMES)
+  return { three: uses3D(source), sound: notation || usesAny(code, SOUND_NAMES) || midiHooksOf(code).length > 0, dials: usesAny(code, DIAL_NAMES), scenes: usesScenes(code), notation }
 }
 
 /**
  * A sibling library, loaded the first time a scene uses it: the module in its folder beside this file.
  * A failure is not remembered, so the next scene tries again.
  */
-const SIBLINGS = { sound: 'sound/synths.js', dials: 'dials/dials.js', scenes: 'scenes/scenes.js' }
+const SIBLINGS = { sound: 'sound/synths.js', dials: 'dials/dials.js', scenes: 'scenes/scenes.js', notation: 'notation/notation.js' }
 const siblings = {}
 function loadSibling(which) {
   const address = new URL(SIBLINGS[which], BASE).href
   siblings[which] ??= import(address).catch((e) => {
     delete siblings[which]
-    throw new Error(`This scene uses ${which === 'sound' ? 'sound' : which === 'scenes' ? 'scenes' : 'on-screen controls'}, and that part of pictures.js could not be loaded: ${address} (${e?.message ?? e})`)
+    throw new Error(`This scene uses ${which === 'sound' ? 'sound' : which === 'scenes' ? 'scenes' : which === 'notation' ? 'sheet music' : 'on-screen controls'}, and that part of pictures.js could not be loaded: ${address} (${e?.message ?? e})`)
   })
   return siblings[which]
 }
@@ -965,9 +977,11 @@ export function runScene(container, options = {}) {
       canvas.style.touchAction = takesPointer ? 'none' : 'pan-y'
       // Sound and on-screen controls: asked of the scene's text, as three.js is, and loaded only for a scene that uses them.
       const midiHooks = midiHooksOf(code)
-      const wantsSound = usesAny(code, SOUND_NAMES) || midiHooks.length > 0, wantsControls = usesAny(code, DIAL_NAMES)
+      // (Sheet music is played and followed by the sound's clock, so a scene that shows some has the sound too.)
+      const wantsNotation = usesAny(code, NOTATION_NAMES)
+      const wantsSound = wantsNotation || usesAny(code, SOUND_NAMES) || midiHooks.length > 0, wantsControls = usesAny(code, DIAL_NAMES)
       const wantsScenes = usesScenes(code)
-      const [{ THREE, addons }, soundLib, controlsLib, scenesLib] = await Promise.all([is3D ? loadThree() : {}, wantsSound && loadSibling('sound'), wantsControls && loadSibling('dials'), wantsScenes && loadSibling('scenes')])
+      const [{ THREE, addons }, soundLib, controlsLib, scenesLib, notationLib] = await Promise.all([is3D ? loadThree() : {}, wantsSound && loadSibling('sound'), wantsControls && loadSibling('dials'), wantsScenes && loadSibling('scenes'), wantsNotation && loadSibling('notation')])
       if (!live()) return
       // three.js loaders take the same table (one scene to a page when it is used).
       if (THREE && files) THREE.DefaultLoadingManager.setURLModifier((url) => files[url] || url)
@@ -1937,6 +1951,14 @@ export function runScene(container, options = {}) {
         panel = controlsLib.dials(canvas, { fresh: true })
         cleanup.push(() => panel.panel?.close())
         for (const n of bothSpellings(DIAL_NAMES)) if (!(n in more)) more[n] = panel[n] ?? panel[camel(n)] ?? controlsLib[n] ?? controlsLib[camel(n)]
+      }
+      // --- SHEET MUSIC (showNotes, makeSheet; notation.js): pages of music drawn on canvases of their own over the scene's and
+      // under its controls, and gone with the scene. They are given the scene's own sound: what `page.play()` plays through,
+      // whose clock says which note to light, and whose being on (not its clock alone) says when a tune may begin.
+      if (notationLib) {
+        const pages = notationLib.notation(canvas, { fresh: true, sound, resolve: at })
+        cleanup.push(() => pages.stage?.close())
+        for (const n of bothSpellings(NOTATION_NAMES)) if (!(n in more)) more[n] = pages[n] ?? pages[camel(n)]
       }
       // --- SCENES (see SCENES): only for a file that names one.
       if (scenesLib) {

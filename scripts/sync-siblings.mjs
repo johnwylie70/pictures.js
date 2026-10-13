@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * Brings the two sibling libraries into this package, and keeps the names a scene is given in step with them:
+ * Brings the sibling libraries into this package, and keeps the names a scene is given in step with them:
  *
  *   sound/       synths.js, its MIDI (synths-midi.js), its audio worklet's file, the engine (synths_core.wasm) and its LICENSE, from ../synths.js
  *   dials/       dials.js (the on-screen controls) and its LICENSE, from ../dials.js
- *   pictures.js  the lists between the SOUND_NAMES and DIAL_NAMES marks: every function the vendored copy gives
+ *   notation/    notation.js (sheet music), its LICENSE and the licence of the music symbols' outlines (LICENSE-GLYPHS), from ../notation.js
+ *   pictures.js  the lists between the SOUND_NAMES, DIAL_NAMES and NOTATION_NAMES marks: every function the vendored copy gives
  *                a scene, read out of the copy itself, so a function a sibling gains is a scene's the next time this runs
  *
  *   node scripts/sync-siblings.mjs            copy both, as they were last committed there, and write the lists
@@ -29,6 +30,7 @@ const keep = check || process.argv.includes('--keep')
 const COPIES = [
   ['synths.js', 'sound', ['synths.js', 'synths-midi.js', 'synths-worklet.js', 'synths_core.wasm', 'LICENSE']],
   ['dials.js', 'dials', ['dials.js', 'LICENSE']],
+  ['notation.js', 'notation', ['notation.js', 'LICENSE', 'LICENSE-GLYPHS']],
 ]
 // What createSound() has that is the host's to call, not a scene's.
 const HOSTS_OWN = new Set(['flush', 'close', 'player', 'pause', 'resume', 'settled', 'useMidiHooks', 'receiveSoundEvents'])
@@ -83,10 +85,15 @@ const free = (names, what) => names.filter((n) => {
 })
 const clash = soundNames.filter((n) => controlNames.includes(n))
 if (clash.length) console.log(`Both siblings have ${clash.join(', ')}: a scene is given the sound one`)
+// Sheet music says itself which of its functions are a scene's (its `sceneNames`): the rest are for a program that wants the written music.
+const sheets = await import(pathToFileURL(join(ROOT, 'notation', 'notation.js')).href)
+const sheetTaken = sheets.sceneNames.filter((n) => soundNames.includes(n) || controlNames.includes(n))
+for (const n of sheetTaken) console.log(`sheet music's "${n}" is left out: the ${soundNames.includes(n) ? 'sound' : 'controls'} have a ${n}`)
+const sheetNames = sheets.sceneNames.filter((n) => typeof sheets[n] === 'function' && !sheetTaken.includes(n))
 
 const list = (name, names) => `/* ${name}:BEGIN */\nconst ${name} = ${JSON.stringify(names).replace(/"/g, "'").replace(/,/g, ', ')}\n/* ${name}:END */`
 let next = text
-for (const [name, names] of [['SOUND_NAMES', free(soundNames, 'sound')], ['DIAL_NAMES', free(controlNames.filter((n) => !clash.includes(n)), 'dials')]]) {
+for (const [name, names] of [['SOUND_NAMES', free(soundNames, 'sound')], ['DIAL_NAMES', free(controlNames.filter((n) => !clash.includes(n)), 'dials')], ['NOTATION_NAMES', free(sheetNames, 'sheet music')]]) {
   const marks = new RegExp(`/\\* ${name}:BEGIN \\*/[\\s\\S]*?/\\* ${name}:END \\*/`)
   if (!marks.test(next)) { console.error(`pictures.js has no ${name} marks to write between`); process.exit(1) }
   next = next.replace(marks, () => list(name, names))
@@ -98,6 +105,6 @@ if (next !== text) {
 }
 
 const size = async (folder, files) => (await Promise.all(files.map((f) => stat(join(ROOT, folder, f))))).reduce((sum, s) => sum + s.size, 0)
-for (const [, folder, files] of COPIES) console.log(`${folder}/ is ${Math.round(await size(folder, files) / 1024)} kB (${sound.version && folder === 'sound' ? `synths.js ${sound.version}` : `dials.js ${controls.version}`})`)
+for (const [, folder, files] of COPIES) console.log(`${folder}/ is ${Math.round(await size(folder, files) / 1024)} kB (${folder === 'sound' ? `synths.js ${sound.version}` : folder === 'notation' ? `notation.js ${sheets.version}` : `dials.js ${controls.version}`})`)
 if (check && out) { console.log(`${out} out of step: run node scripts/sync-siblings.mjs`); process.exit(1) }
 console.log(check ? 'In step.' : 'Done.')

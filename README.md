@@ -286,6 +286,24 @@ function draw() {
 
 There are game sounds (`playSound("coin")`), notes and tunes (`playNote("C4")`, `playNotes("C4 E4 G4 - C5", 0.25)`), synths whose settings are plain properties (`lead.cutoff = 800`), arpeggios, recorded sounds, MIDI (`lead.playFromMidi()` and a keyboard plays the synth) and your voice (`const mic = useMicrophone()`, `mic.voice = "robot"`, `recordSound(3)`, `saveSound(take, "hello.wav")`); and dials, sliders, buttons, switches, a piano keyboard, a scope and a meter that lay themselves out over the scene. The sound is made by [synths.js](https://github.com/johnwylie70/synths.js), in the `sound` folder, and the controls by [dials.js](https://github.com/johnwylie70/dials.js), in the `dials` folder. Each is loaded only by a scene that uses it: a scene with no sound and no controls loads exactly what it always did. See [Sound and music](docs/sound.md) and [Dials, sliders and a keyboard](docs/controls.md).
 
+## Sheet music
+
+A scene can write music out as notes on a staff, play it, and light each note as it sounds:
+
+```js
+const page = showNotes("E4 D4 C4 D4 E4 E4 E4:2", "quarter")
+
+function onMouseDown() {
+  page.play()
+}
+
+function draw() {
+  background("midnightblue")
+}
+```
+
+Change the notes in the line and both what you hear and what you see change. A tracker song can be written out a staff a channel and followed as it plays, a sheet can be written a note at a time (`makeSheet()`), and a learner can play along on a keyboard (`page.playAlong("wait")`, `keyboard(page)`). It is made by [notation.js](https://github.com/johnwylie70/notation.js), in the `notation` folder, and is loaded only by a scene that uses it. See [Sheet music](docs/sheet-music.md).
+
 ## Scenes
 
 A file can be several scenes: a title screen, the game and a game-over screen, or the parts of a show on a timer. Each is a class with the same functions a file has, and starts empty.

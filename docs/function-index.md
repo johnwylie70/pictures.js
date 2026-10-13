@@ -16,6 +16,7 @@ Every name a pictures.js scene can use, by area, one line each. The link on each
 | Databases (SQLite) | yes | yes |
 | Sound and music | yes | not yet |
 | Dials, sliders and a keyboard | yes | not yet |
+| Sheet music | yes | not yet |
 | Image processing | Circuitry only | Circuitry only |
 
 This page is pictures.js's own index, in its own spellings. Pyctures has the same areas in Python: [the Pyctures function index](https://www.circuitry.dev/docs/pyctures/functions).
@@ -751,6 +752,25 @@ Explained in [Dials, sliders and a keyboard](dials.md).
 ## Image processing
 
 There are none in the library. A scene loads and draws a picture (`loadImage`, `picture`, `ctx.drawImage`). Picture methods such as `await img.removeBackground()` are supplied by the app that runs the scene. Circuitry Studio supplies them, and they are not part of pictures.js used on its own or in a built page: [Images from Code](https://www.circuitry.dev/docs/pictures/images). An app of your own can supply its own: [Use it on your website](website.md#picture-methods).
+
+## Sheet music
+
+Loaded only by a scene that calls `showNotes` or `makeSheet`; such a scene has the sound as well.
+
+Explained in [Sheet music](sheet-music.md).
+
+| Name | What it does | Python spelling |
+|---|---|---|
+| `showNotes(music, step, options)` | Writes music out as notes on a staff and gives back its page. `music` is a tune as `playNotes` takes it, a list, a sheet, a song, or a list of `{ note, start, length }` | `show_notes` |
+| `makeSheet(options)` | A sheet to write a note at a time: `sheet.add("G4", "quarter")`, `sheet.add(["B4", "D5"], "half")`, `sheet.rest("quarter")`, `sheet.clear()` | `make_sheet` |
+| `page.play(options)`, `page.stop()`, `page.playing` | Plays the music and lights each note as it sounds. `{ from, tempo, repeat }` | |
+| `page.follow(song)` | Follows a song from `playSong`, or a function that gives beats | |
+| `page.onNote`, `page.onBar`, `page.onTap`, `page.onDone` | Yours to set: called as a note or a bar begins, when a note or a bar is tapped, and when the music ends | `on_note`, `on_bar`, `on_tap`, `on_done` |
+| `page.beat`, `page.bar`, `page.sounding` | Where the music has got to, and the notes sounding now | |
+| `page.playAlong(mode)` | The learner plays: `"wait"` waits at each note, `"time"` keeps time. `{ synth, staff, tempo, hint, anyOctave, countIn }` | `play_along` |
+| `page.noteOn(note)`, `page.noteOff(note)` | A key went down, or up. `keyboard(page)` does this for you | `note_on`, `note_off` |
+| `page.result`, `page.onRight`, `page.onWrong` | How playing along is going: `{ right, wrong, missed, total, percent, timing, done }` | `on_right`, `on_wrong` |
+| `page.seek(bar)`, `page.show(music)`, `page.place(where)`, `page.zoom`, `page.remove()` | Go to a bar; other music; its place and size; take it away | |
 
 ## Related
 
