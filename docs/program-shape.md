@@ -33,6 +33,8 @@ These are ready in every file, with no import:
 
 Everything else a web page has is there too, as in any JavaScript: `document`, `Path2D`, `Math`, `console` and the rest.
 
+A file can also be several scenes, such as a title screen and a game, each with its own `setup`, `update`, `draw` and `on` functions: see [Scenes](scenes.md). Then `Scene`, `scene`, `go`, `nextScene`, `restart`, `section`, `config`, `sceneTime`, `sceneProgress` and `sceneName` are ready too.
+
 A scene is either 2D or 3D. It is 3D when its code uses `THREE.` or `addons.` anywhere; then three.js is loaded and there is no `ctx`. Otherwise it is 2D, and `THREE` and `addons` are not loaded.
 
 ## 1. Draw once
@@ -426,6 +428,7 @@ Things to know:
 
 ## Related
 
+- [Scenes](scenes.md)
 - [Drawing in 2D](drawing-2d.md)
 - [3D scenes](3d.md)
 - [Tips and limits](tips.md)

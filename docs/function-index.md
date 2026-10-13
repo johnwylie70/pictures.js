@@ -10,6 +10,7 @@ Every name a pictures.js scene can use, by area, one line each. The link on each
 | Sprites and hit-testing | yes | yes |
 | Keyboard, mouse and touch | yes | yes |
 | Frames and timing | yes | yes |
+| Scenes | yes | yes |
 | Saved values | yes | yes |
 | Files | yes | yes |
 | Databases (SQLite) | yes | yes |
@@ -33,6 +34,29 @@ Explained in [How a program is shaped](program-shape.md#2-draw-every-frame-draw-
 | `update(dt)` | Called every frame, with the seconds since the last one: move things here |
 | `draw()` | Called every frame, after `update`: draw the picture here |
 | `onStop()` | Called when the scene is stopped or run again: let go of what it made itself |
+
+## Scenes
+
+A program in several scenes, each with the functions above as its own. Only a file that uses one of these names is given them.
+
+Explained in [Scenes](scenes.md).
+
+| Name | What it does |
+|---|---|
+| `class Title extends Scene { … }` | A scene: `setup`, `update`, `draw` and the `on` functions as its methods, its variables on `this`. Every `Scene` class plays, in the order written |
+| `scene(name, { draw, update, … })` | A scene from plain functions, with no class |
+| `go(scene)` | Change to a scene, by its name or its class. `go("Game", { transition: "wipe", transitionTime: 0.5 })` says how; `{ keep: true }` goes back to a scene as it was left |
+| `nextScene()` | Change to the next scene written; after the last comes the first |
+| `restart()` | Begin this scene again, from empty |
+| `length`, `beats`, `bars` | On a scene: it ends by itself after so many seconds, beats or bars |
+| `transition`, `transitionTime`, `transitionColor` | On a scene: how it arrives. `"cut"`, `"crossfade"`, `"fade"`, `"wipe"`, `"wipe_left"`, `"wipe_up"`, `"wipe_down"`, `"slide_left"`, `"slide_right"`, `"slide_up"`, `"slide_down"` |
+| `resume()` | A scene's own: called in place of `setup()` when it is come back to with `{ keep: true }` |
+| `sceneTime` | Seconds since this scene began |
+| `sceneProgress` | How far through its length the scene is, from 0 to 1 |
+| `sceneName` | The name of the scene on show |
+| `section(name)` | A tick on the scrubber at this moment |
+| `config({ … })` | Settings for every scene: `loop`, `transition`, `transitionTime`, `transitionColor`, `beatsPerBar` |
+| `onSeek(seconds)` | A function you write at the top level: called when the scrubber is moved |
 
 ## 2D drawing: the plain functions
 

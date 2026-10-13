@@ -286,6 +286,30 @@ function draw() {
 
 There are game sounds (`playSound("coin")`), notes and tunes (`playNote("C4")`, `playNotes("C4 E4 G4 - C5", 0.25)`), synths whose settings are plain properties (`lead.cutoff = 800`), arpeggios, recorded sounds, MIDI (`lead.playFromMidi()` and a keyboard plays the synth) and your voice (`const mic = useMicrophone()`, `mic.voice = "robot"`, `recordSound(3)`, `saveSound(take, "hello.wav")`); and dials, sliders, buttons, switches, a piano keyboard, a scope and a meter that lay themselves out over the scene. The sound is made by [synths.js](https://github.com/johnwylie70/synths.js), in the `sound` folder, and the controls by [dials.js](https://github.com/johnwylie70/dials.js), in the `dials` folder. Each is loaded only by a scene that uses it: a scene with no sound and no controls loads exactly what it always did. See [Sound and music](docs/sound.md) and [Dials, sliders and a keyboard](docs/controls.md).
 
+## Scenes
+
+A file can be several scenes: a title screen, the game and a game-over screen, or the parts of a show on a timer. Each is a class with the same functions a file has, and starts empty.
+
+```js
+class Title extends Scene {
+  draw() {
+    background("midnightblue")
+    text("Click to start", width / 2, height / 2, "white", 30, "centre")
+  }
+  onMouseDown() { go("Game", { transition: "crossfade" }) }
+}
+
+class Game extends Scene {
+  length = 20                 // seconds, then the next scene written begins
+  draw() {
+    background("black")
+    circle(mouse.x, mouse.y, 20, "gold")
+  }
+}
+```
+
+`go`, `nextScene()` and `restart()` change scene, `length`, `beats` or `bars` end one by itself, and `transition = "crossfade"` (or `"fade"`, `"wipe"`, `"slide_left"`…) is how one arrives. A program whose scenes all have a length has a scrubber with a tick where each starts. The words are [Pymations'](https://github.com/johnwylie70/pymations) wherever the thing is the same. See [Scenes](docs/scenes.md).
+
 ## Changing a picture
 
 pictures.js loads and draws pictures. The methods that change one (`await img.removeBackground()`, `await img.resize({ width: 800 })`, `await img.trace()` and more) are not part of this library: the app that runs a scene supplies them and does the work. [Circuitry Studio](https://www.circuitry.dev/docs/pictures/images) does, so a scene there can cut out a subject, resize, crop, trace a picture into shapes and read what is in it. On a page of your own, and in a page made with `pictures build`, a picture still loads and draws, and calling one of these stops the scene with a message that says they work inside Circuitry. An app of your own can supply them with the `pictures` option: see [Use it on your website](docs/website.md#picture-methods).
@@ -307,6 +331,7 @@ In [`examples/`](examples), each with a comment at the top saying what it shows.
 | `snake.js` | Snake: a game on a grid, with a best score that is kept |
 | `high_score.js` | A best score that is still there next time: `save` and `load` |
 | `top_scores.js` | Every game kept in a SQLite database, and the five best shown: `openDatabase` |
+| `three_screens.js`, `three_parts.js` | Scenes: a title screen, the game and a game-over screen; and three parts on a timer with a transition into each |
 | `cube_dodge.js` | A 3D game: dodge the oncoming blocks |
 | `lit_scene.js` | Shapes on a floor with a spotlight and shadows |
 | `bouncing_balls.js` | A 2D animation with trails; click to add balls |

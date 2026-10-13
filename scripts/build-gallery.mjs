@@ -61,6 +61,8 @@ const SCENES = [
   ['moving.js', 'Moving', 'A circle crossing the picture: update(dt) and one number.', 'Change the 200 in the code to change its speed.'],
   ['follow.js', 'Follow', 'A circle you move.', 'Arrow keys, or hold the mouse or a finger on it.'],
   ['first_game.js', 'First Game', 'Catch the falling stars in the basket: sprites, touches() and a score.', 'Move the mouse, or drag a finger.'],
+  ['three_screens.js', 'Three Screens', 'A title screen, the game and a game-over screen: three scenes, with a transition between them.', 'Click to start, then move the mouse or drag a finger.'],
+  ['three_parts.js', 'Three Parts', 'Three scenes on a timer, one after another, with a scrubber that has a tick where each starts.', 'Move the pointer over it for the scrubber.'],
   ['ring.js', 'Ring', 'Twelve circles in a ring.', ''],
   ['pulse_loop.js', 'Pulse', 'A loop with await frame(): every pass is one frame.', ''],
 ].filter(([file]) => existsSync(join(EXAMPLES, file)))

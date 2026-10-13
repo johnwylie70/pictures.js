@@ -65,6 +65,10 @@
  *   dial, slider, button,   controls on the scene, laid out for you: `const speed = dial("speed", 0, 10)` is a number to
  *   toggle, select,         read (`speed.value`), `dial("cutoff", lead, "cutoff")` is that setting of a synth,
  *   keyboard, scope, meter  `keyboard(lead)` plays it and `scope(lead)` draws its wave. Also label, row, layout, theme, over
+ *   Scene, scene, go,       a program in several scenes (see SCENES): `class Title extends Scene { draw() { … } }` is one, with the
+ *   nextScene, restart,     functions below as its methods; `go("Game")`, `nextScene()` and `restart()` change scene, `length = 12`
+ *   section, config         ends one by itself, `transition = "crossfade"` is how it arrives, and sceneTime, sceneProgress and
+ *                           sceneName say where it is
  *
  * and these functions are called if the scene defines them:
  *
@@ -77,6 +81,7 @@
  *   onTouchStart(touch), onTouchMove(touch), onTouchEnd(touch, cancelled)
  *   onWheel(amount), onPinch(scale, change)
  *   onStop()                when the scene is stopped or run again: let go of what it made itself
+ *   onSeek(seconds)         when the scrubber of a program of timed scenes is moved (see SCENES)
  *
  * The scene's code calls the canvas directly: nothing is recorded or replayed,
  * so it runs at the browser's own speed. The Python spellings (`pixel_ratio`,
@@ -1094,7 +1099,8 @@ function directScenes(env) {
       restart: (how) => ask('restart()', undefined, how),
       section(name) {
         const said = String(name)
-        marks = marks.filter((m) => m.name !== said)
+        // Said again (every frame, or the next time round), a mark stays where it was first put.
+        if (marks.some((m) => m.name === said)) return
         marks.push({ name: said, t: time() })
         if (defs.length) report()
       },
