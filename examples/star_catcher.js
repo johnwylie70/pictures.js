@@ -1,6 +1,7 @@
-// Star Catcher: a game with emoji sprites. Catch the stars and dodge the rocks; you have three lives.
+// Star Catcher: a game with emoji sprites and sound. Catch the stars and dodge the rocks; you have three lives.
 // Use: the left and right arrow keys, or drag. Space or a tap plays again.
-// Try changing: 0.6, the seconds between new stars; 320, how fast the rocket moves; the emoji.
+// Try changing: 0.6, the seconds between new stars; 320, how fast the rocket moves; the emoji;
+// "coin" to "blip" or "powerup" (the sounds are a line each: look for playSound).
 //
 // Run it:   pictures run star_catcher.js
 // Share it: pictures build star_catcher.js -o site/
@@ -31,7 +32,10 @@ function drop(picture, size) {
 
 function update(dt) {
   if (lives <= 0) {
-    if (keys.has(" ") || mouse.down) reset()
+    if (keys.has(" ") || mouse.down) {
+      reset()
+      playSound("powerup")
+    }
     return
   }
   const speed = 320 * dt
@@ -55,6 +59,7 @@ function update(dt) {
   stars = stars.filter((s) => {
     if (s.touches(player)) {
       score += 1
+      playSound("coin")
       return false
     }
     return s.y <= height + 30
@@ -62,6 +67,7 @@ function update(dt) {
   rocks = rocks.filter((r) => {
     if (r.touches(player)) {
       lives -= 1
+      playSound(lives > 0 ? "hit" : "lose")
       return false
     }
     return r.y <= height + 30
