@@ -53,6 +53,10 @@
  *   loadSample, playArp…    settings are plain properties (`lead.cutoff = 800`). Also note, chord, rest, startArp, setEffects, setVolume,
  *                           muteSound, stopSound, setTempo, beats, beat and soundTime. The first click or tap turns the
  *                           sound on; it pauses while the scene is out of view and stops with the scene
+ *   onMidiNote, onMidiControl,  MIDI: a scene's own `function onMidiNote(note, velocity, channel) { }` is called when a key of a MIDI
+ *   lead.playFromMidi()     keyboard goes down (and `onMidiNoteOff`, `onMidiControl(number, value, channel)`, `onMidi(message)`,
+ *                           `onMidiDevices(devices)`); `lead.playFromMidi()` has the keyboard play a synth, `lead.learn("cutoff")`
+ *                           gives a setting to the next knob turned, and `sendMidiNote("C4")` plays a synth on the desk
  *   dial, slider, button,   controls on the scene, laid out for you: `const speed = dial("speed", 0, 10)` is a number to
  *   toggle, select,         read (`speed.value`), `dial("cutoff", lead, "cutoff")` is that setting of a synth,
  *   keyboard, scope, meter  `keyboard(lead)` plays it and `scope(lead)` draws its wave. Also label, row, layout, theme, over
@@ -95,7 +99,7 @@ const GIVEN = ['__loop', 'ctx', 'canvas', 'THREE', 'addons', 'frame', 'vsync', '
  * Do not edit them by hand.
  */
 /* SOUND_NAMES:BEGIN */
-const SOUND_NAMES = ['playSound', 'playNote', 'playNotes', 'makeSynth', 'loadSample', 'playSong', 'playArp', 'startArp', 'note', 'chord', 'rest', 'startLines', 'loopNotes', 'mainSynth', 'soundOutput', 'stopSong', 'stopSound', 'setVolume', 'muteSound', 'unmuteSound', 'setEffects', 'setTempo', 'beats', 'beat', 'soundTime', 'soundNames', 'synthNames', 'settingNames', 'noteNumber']
+const SOUND_NAMES = ['playSound', 'playNote', 'playNotes', 'makeSynth', 'loadSample', 'playSong', 'playArp', 'startArp', 'note', 'chord', 'rest', 'startLines', 'loopNotes', 'mainSynth', 'soundOutput', 'stopSong', 'stopSound', 'setVolume', 'muteSound', 'unmuteSound', 'setEffects', 'setTempo', 'beats', 'beat', 'soundTime', 'soundNames', 'synthNames', 'settingNames', 'onMidi', 'onMidiNote', 'onMidiNoteOff', 'onMidiControl', 'onMidiDevices', 'sendMidi', 'sendMidiNote', 'sendMidiNoteOff', 'sendMidiControl', 'sendMidiBend', 'sendMidiProgram', 'sendMidiClock', 'midiDevices', 'useMidiInput', 'useMidiOutput', 'receiveMidi', 'stopMidi', 'noteNumber']
 /* SOUND_NAMES:END */
 /* DIAL_NAMES:BEGIN */
 const DIAL_NAMES = ['button', 'dial', 'keyboard', 'label', 'layout', 'meter', 'over', 'row', 'scope', 'select', 'slider', 'theme', 'toggle']
@@ -110,6 +114,16 @@ const HOOKS = {
   touchEnd: ['onTouchEnd', 'on_touch_end'],
   wheel: ['onWheel', 'on_wheel'], pinch: ['onPinch', 'on_pinch'],
   stop: ['onStop', 'on_stop'],
+}
+/**
+ * MIDI's functions a scene may define: `function onMidiNote(note, velocity, channel) { … }` is called when a key of a
+ * MIDI keyboard goes down. They are kept apart from HOOKS because each is also a function of the sound library
+ * with the same name (`onMidiNote((note) => { … })` hands it a function instead), so a scene that defines one is
+ * told from a scene that calls one: see `midiHooksOf` and `compile`.
+ */
+const MIDI_HOOKS = {
+  midi: ['onMidi', 'on_midi'], midiNote: ['onMidiNote', 'on_midi_note'], midiNoteOff: ['onMidiNoteOff', 'on_midi_note_off'],
+  midiControl: ['onMidiControl', 'on_midi_control'], midiDevices: ['onMidiDevices', 'on_midi_devices'],
 }
 /**
  * SAVED VALUES: `save("best", 120)` and `load("best", 0)`. A value is kept as JSON text in the
@@ -353,15 +367,21 @@ export function guardLoops(source) {
  * scene's own code sits one function inside, so it may declare any name
  * again. It hands back the hooks it defined. `more` is the names of the
  * sound and the controls, for a scene that uses them: any other scene is
- * compiled without them, exactly as it was before there were any.
+ * compiled without them, exactly as it was before there were any. `midi`
+ * is the MIDI functions the scene defines itself (`midiHooksOf`): each is
+ * handed back as a hook when it is the scene's own and not the sound
+ * library's function of the same name, which the outer function was given.
  */
-function compile(source, name, guarded, more = []) {
+function compile(source, name, guarded, more = [], midi = []) {
   const found = Object.entries(HOOKS).map(([hook, names]) =>
     `${hook}: ${names.map((n) => `typeof ${n} === 'function' ? ${n} : `).join('')}undefined`).join(', ')
-  const body = `let width = 0, height = 0, pixelRatio = 1, pixel_ratio = 1; __size((w, h, r) => { width = w; height = h; pixelRatio = pixel_ratio = r })
+  const lib = midi.length ? `; const __lib = { ${midi.map((n) => `${n}: typeof ${n} === 'function' ? ${n} : 0`).join(', ')} }` : ''
+  const heard = Object.entries(MIDI_HOOKS).map(([hook, names]) => [hook, names.filter((n) => midi.includes(n))]).filter(([, names]) => names.length).map(([hook, names]) =>
+    `, ${hook}: ${names.map((n) => `typeof ${n} === 'function' && ${n} !== __lib.${n} ? ${n} : `).join('')}undefined`).join('')
+  const body = `let width = 0, height = 0, pixelRatio = 1, pixel_ratio = 1; __size((w, h, r) => { width = w; height = h; pixelRatio = pixel_ratio = r })${lib}
 return (async () => {
 ${guarded ? guardLoops(source) : source}
-;return { ${found} }
+;return { ${found}${heard} }
 })()
 //# sourceURL=${name}`
   return new AsyncFunction(...GIVEN, ...more, '__size', body)
@@ -499,10 +519,17 @@ function usesAny(code, names) {
   return false
 }
 
+/**
+ * The MIDI functions a scene defines itself (`function onMidiNote(note, velocity) { … }`, or `const onMidiNote = …`),
+ * by the names they were written with. A scene with one uses sound, though it may name nothing else of sound's.
+ */
+const MIDI_DEFINED = new RegExp(`\\b(?:function\\s+|(?:const|let|var)\\s+)(${Object.values(MIDI_HOOKS).flat().sort((a, b) => b.length - a.length).join('|')})\\b(?=\\s*[(=])`, 'g')
+const midiHooksOf = (code) => [...new Set([...code.matchAll(MIDI_DEFINED)].map((m) => m[1]))]
+
 /** Which of the parts that are loaded on first use a scene's text asks for. `pictures build` copies the same ones. */
 export function sceneUses(source) {
   const code = codeOf(source)
-  return { three: uses3D(source), sound: usesAny(code, SOUND_NAMES), dials: usesAny(code, DIAL_NAMES) }
+  return { three: uses3D(source), sound: usesAny(code, SOUND_NAMES) || midiHooksOf(code).length > 0, dials: usesAny(code, DIAL_NAMES) }
 }
 
 /**
@@ -635,6 +662,10 @@ function syntaxLine(source) {
  *                     read?: (id?: string) => { samples: Float32Array, level: number[], notes: number[] },
  *                     wasm?: ArrayBuffer | Uint8Array | WebAssembly.Module | string | Promise<any>, worklet?: 'auto' | 'blob' | 'file' | string,
  *                     latency?: number, context?: AudioContext, destination?: AudioNode, fallback?: boolean | 'always', onState?: (state: string) => void },
+ *           midi?: false | { open?: () => void | Promise<void>, inputs: () => string[], outputs: () => string[],
+ *                            send: (bytes: number[], time: number, output?: string) => void,
+ *                            receive: (listener: (bytes: number[] | Uint8Array, time?: number, input?: string) => void) => void,
+ *                            changed?: (listener: () => void) => void, close?: () => void },
  *           pictures?: { methods: { name: string, options?: string[] }[], run: (picture: HTMLImageElement | unknown, name: string, options: object) => Promise<object>,
  *                        save?: (picture: HTMLImageElement | unknown, path: string) => Promise<string>, available?: () => Promise<string[]> },
  *           onError?: (message: string, line: number) => void,
@@ -656,6 +687,11 @@ function syntaxLine(source) {
  *   and `worklet` how its audio worklet is loaded ('blob', from text already inside the library, needs no file). The rest are the
  *   player's own options (synths.js's createPlayer): `destination` is a node to play into (a recorder), `fallback: 'always'` makes
  *   the sound on the page's thread where an audio worklet will not load.
+ *   `midi` is the MIDI devices themselves, for a host whose browser has no Web MIDI (an iPad app, with CoreMIDI behind it): a plain
+ *   object of functions (synths.js's docs/midi.md, "The midi option"), used in place of the browser's own. `midi: false` switches MIDI
+ *   off. Without it the browser's Web MIDI is asked the first time a scene uses MIDI, and where there is none the scene still runs
+ *   and the console says so once. A host that takes the commands itself (`sound.send`) carries out the `midi` commands among them
+ *   with its own player, and hands back what was received through `sound.onMidi(listener, scope)`, as a player has it.
  *   `pictures` gives a loaded picture its methods (`await img.removeBackground()`), for a host that can change pictures: the list of
  *   them and the functions that do the work (see PICTURE METHODS). Without it a picture has none, and says where they work.
  *   `stopStuckLoops` stops a loop that holds the page for 4 seconds (see `guardLoops`); off unless asked for.
@@ -823,7 +859,8 @@ export function runScene(container, options = {}) {
       const takesWheel = usesWheel(code), takesPinch = usesPinch(code)
       canvas.style.touchAction = takesPointer ? 'none' : 'pan-y'
       // Sound and on-screen controls: asked of the scene's text, as three.js is, and loaded only for a scene that uses them.
-      const wantsSound = usesAny(code, SOUND_NAMES), wantsControls = usesAny(code, DIAL_NAMES)
+      const midiHooks = midiHooksOf(code)
+      const wantsSound = usesAny(code, SOUND_NAMES) || midiHooks.length > 0, wantsControls = usesAny(code, DIAL_NAMES)
       const [{ THREE, addons }, soundLib, controlsLib] = await Promise.all([is3D ? loadThree() : {}, wantsSound && loadSibling('sound'), wantsControls && loadSibling('dials')])
       if (!live()) return
       // three.js loaders take the same table (one scene to a page when it is used).
@@ -1729,13 +1766,17 @@ export function runScene(container, options = {}) {
       // way down to the canvas, so the scene's own handlers hear the same event after it).
       // SOUND STOPS WITH THE FRAMES: paused while the scene is out of view or its tab is hidden, and closed when the
       // scene stops or is run again.
+      // MIDI is the sound library's too (its file is fetched when a scene first uses a MIDI function, or defines one
+      // of MIDI_HOOKS): `options.midi` is the host's own way to the devices, where the browser has none.
       const more = {}
       let hush = null
+      let sound = null
       if (soundLib) {
         const host = options.sound || {}
         // (`read` is the host player's own, part of the transport; the rest are the player's options.)
         const { send, read, readBytes, ...playing } = host
-        const sound = voice = soundLib.createSound({ ...playing, sound: send ? host : undefined, resolve: at, read: readBytes && ((path) => host.readBytes(path)) })
+        if (options.midi !== undefined) playing.midi = options.midi
+        sound = voice = soundLib.createSound({ ...playing, sound: send ? host : undefined, resolve: at, read: readBytes && ((path) => host.readBytes(path)) })
         let quiet = null
         hush = () => {
           const now = !inView || document.hidden
@@ -1819,7 +1860,7 @@ export function runScene(container, options = {}) {
 
       let scene
       try {
-        scene = compile(source, name, !!options.stopStuckLoops, Object.keys(more))
+        scene = compile(source, name, !!options.stopStuckLoops, Object.keys(more), midiHooks)
       } catch (error) {
         // It would not compile: find the line before saying so.
         const where = error instanceof SyntaxError ? await syntaxLine(source) : { line: 0, past: false }
@@ -1840,6 +1881,12 @@ export function runScene(container, options = {}) {
       hooks = await begun
       if (!live()) return
       stopping = () => hooks.stop?.()
+      // The scene's own MIDI functions are called with what arrives, as its other functions are with keys and the mouse.
+      if (sound) {
+        const heard = {}
+        for (const [hook, [said]] of Object.entries(MIDI_HOOKS)) if (hooks[hook]) heard[said] = (...args) => call(hooks[hook], ...args)
+        if (Object.keys(heard).length) sound.useMidiHooks(heard)
+      }
       if (hooks.setup) await hooks.setup()
       if (!live()) return
       if (hooks.draw || hooks.update) looping = true
