@@ -2009,6 +2009,8 @@ export function runScene(container, options = {}) {
         fx = effectsLib.effects(canvas, { fresh: true, manual: true, sound: sound ? () => sound.soundOutput() : null, under: () => changing?.running?.layer })
         cleanup.push(() => { fx?.close(); fx = null })
         for (const n of bothSpellings(EFFECT_NAMES)) if (!(n in more)) more[n] = fx[n] ?? fx[camel(n)]
+        // A film the scene makes of itself has the scene's own sound, when that is made a frame at a time (`stepped`).
+        for (const n of ['renderFrames', 'recordVideo']) { const film = fx[n]; if (more[n] === film) more[n] = more[snake(n)] = (o = {}) => film({ sound: () => voice?.player, ...o }) }
       }
       let last = 0
       let counted = 0

@@ -250,6 +250,58 @@ const pick = setInterval(() => { for (let n = 0; n < 8; n++) { let l = 0; try { 
     say(!got.error && got.picked >= 0 && got.loudness > 0.5, name, 'and through one channel of the song, listenTo(song.channel(n))', got)
   } else console.log(`     ${name}: no song beside this repository (${SONG}), so the song as music is not tested`)
 
+  // STEPPED, as a video recorder runs a scene: the page's clock and the sound are moved a frame at a time, and what
+  // the effects hear on a frame is that frame's own sound. Run twice, the music's numbers and the picture are the same.
+  await page.goto(`${at}/test.html`)
+  const stepped = () => page.evaluate(async ({ frames, fps }) => {
+    let clock = 0, waiting = []
+    const real = { raf: window.requestAnimationFrame, caf: window.cancelAnimationFrame, now: performance.now }
+    window.requestAnimationFrame = (fn) => { waiting.push(fn); return waiting.length }
+    window.cancelAnimationFrame = () => {}
+    performance.now = () => clock
+    try {
+      const { runScene } = await import('/pictures.js')
+      window.scene?.stop()
+      document.getElementById('s').replaceChildren()
+      window.heard = []
+      const errors = []
+      const scene = runScene(document.getElementById('s'), { name: 'beat.js', stepped: { fps }, onError: (m) => errors.push(m), source: `
+const fxs = (await use("/visualfx/visualfx.js")).effects(canvas)
+playNotes("C2 - - - C2 - - -", 0.125, { repeat: true })
+const shine = glow(0.3)
+react(shine, "strength", "bass", { from: 0.3, to: 1.5 })
+let n = 0
+function draw() {
+  n++
+  background("black")
+  circle(150, 100, 20 + 60 * bass(), "gold")
+  window.heard.push([bass(), loudness(), pulse(), shine.strength].map((v) => Math.round(v * 1e6) / 1e6))
+}
+fxs.onFrame((fx) => { if (n === ${frames}) { const p = fx.pixels(); let h = 2166136261; for (let i = 0; i < p.data.length; i++) h = Math.imul(h ^ p.data[i], 16777619); window.picture = h >>> 0 } })` })
+      await scene.ready
+      const player = scene.sound
+      if (!player || !player.stepped) return { skipped: true }
+      for (let f = 0; f < frames; f++) {
+        clock = f * 1000 / fps
+        await player.stepped.advance(clock / 1000)
+        player.stepped.take()
+        for (const fn of waiting.splice(0)) fn(clock)
+        await new Promise((done) => setTimeout(done, 0))
+      }
+      const out = { heard: window.heard.slice(0, frames), picture: window.picture, kind: player.kind, errors }
+      scene.stop()
+      return out
+    } finally { window.requestAnimationFrame = real.raf; window.cancelAnimationFrame = real.caf; performance.now = real.now }
+  }, { frames: 60, fps: 30 })
+  const one = await stepped(), two = await stepped()
+  if (one.skipped) console.log(`     ${name}: the sound here has no stepped player, so the effects' music is not tested a frame at a time`)
+  else {
+    const loud = Math.max(...one.heard.map((h) => h[1])), bassy = Math.max(...one.heard.map((h) => h[0])), pulses = one.heard.filter((h, i) => h[2] > 0.9 && (i === 0 || one.heard[i - 1][2] < 0.5)).length
+    say(one.kind === 'stepped' && !one.errors.length && one.heard.length >= 55 && JSON.stringify(one.heard) === JSON.stringify(two.heard) && one.picture === two.picture && one.picture !== undefined && loud > 0.5 && bassy > 0.5 && pulses >= 2,
+      name, 'stepped a frame at a time, the music the effects hear is each frame\'s own: run twice, every frame\'s bass, loudness, pulse and the glow tied to the bass are the same numbers, and the last picture is the same pixels',
+      { kind: one.kind, errors: one.errors, frames: one.heard.length, same: JSON.stringify(one.heard) === JSON.stringify(two.heard), pictures: [one.picture, two.picture], loud, bassy, pulses, first: one.heard.slice(0, 6) })
+  }
+
   // Every program on the Effects page of the docs is run as it is written.
   const programs = [...(await readFile(join(ROOT, 'docs', 'effects.md'), 'utf8')).matchAll(/```js\n([\s\S]*?)```/g)].map((m) => m[1])
   const broken = []
