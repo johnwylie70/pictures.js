@@ -48,10 +48,12 @@ my-site/
 └── pictures/
     ├── pictures.js   from the pictures.js folder
     ├── three/        the whole three folder, needed only for 3D scenes
-    └── sqlite/       the whole sqlite folder, needed only for scenes that open a database
+    ├── sqlite/       the whole sqlite folder, needed only for scenes that open a database
+    ├── sound/        the whole sound folder, needed only for scenes that make sound
+    └── dials/        the whole dials folder, needed only for scenes with dials, sliders or a keyboard
 ```
 
-The `three` folder must sit beside `pictures.js`, because that is where a 3D scene's three.js is loaded from. A page with only 2D scenes never loads it, and can do without it. The `sqlite` folder is the same for a scene that calls `openDatabase`: SQLite is loaded from it the first time a database is opened, and never by a scene that opens none.
+The `three` folder must sit beside `pictures.js`, because that is where a 3D scene's three.js is loaded from. A page with only 2D scenes never loads it, and can do without it. The `sqlite` folder is the same for a scene that calls `openDatabase`: SQLite is loaded from it the first time a database is opened, and never by a scene that opens none. The `sound` and `dials` folders are the same again: each is loaded by a scene that uses one of its names ([Sound and music](sound.md), [Dials, sliders and a keyboard](dials.md)), and by no other.
 
 ### What a scene's box does
 
@@ -100,13 +102,14 @@ scene.stop()
 | `files` | A table from a path, as the scene writes it, to an address to load in its place: `{ "ship.png": "https://…/ship.png" }`. For a host with no folder to serve; `loadImage`, `loadText`, `loadJSON` and three.js's loaders all use it. |
 | `storage` | Where the files the scene writes are kept, for an app that has real files to give it. See [Storage](#storage) below. Without it the browser keeps them. |
 | `pictures` | The methods a loaded picture has (`await img.removeBackground()`), for an app that can change pictures. See [Picture methods](#picture-methods) below. Without it a picture has none. |
+| `sound` | Where a scene's sound is made, for an app that plays it somewhere else, or that must hand the page the sound engine. See [Sound](#sound) below. Without it the page plays. |
 | `sqlite` | The address of the folder SQLite is loaded from (it holds `sql-wasm.js` and `sql-wasm.wasm`), in place of the `sqlite` folder beside `pictures.js`. |
 | `savedAs` | The name the scene's saved values and files are kept under in the browser. Without it, the scene's address. |
 | `stopStuckLoops` | `true` stops a loop that holds the page for four seconds: the scene shows an error with the loop's line. A loop written without braces is not checked. Off unless asked for. |
 | `onStatus(status)` | Called with `"starting"`, `"running"`, `"finished"` or `"error"` when the status changes. |
 | `onError(message, line)` | Called when the scene stops with an error. `line` is 0 when the line is not known. |
 
-It hands back an object with `stop()`, `restart()` and `canvas`. `stop()` ends the scene and leaves its last picture showing. `restart()` runs it again from the top, and `restart(newSource)` runs new code in its place. `canvas` is the scene's canvas element.
+It hands back an object with `stop()`, `restart()`, `canvas` and `sound`. `stop()` ends the scene and leaves its last picture showing. `restart()` runs it again from the top, and `restart(newSource)` runs new code in its place. `canvas` is the scene's canvas element. `sound` is the page's sound player while a scene that makes sound is running, and `null` otherwise.
 
 Loading the module starts every `[data-pictures-src]` on the page by itself, whether or not you also call `runScene`.
 
@@ -133,6 +136,44 @@ runScene(box, {
 - **A function that fails** (a promise that rejects) stops the scene with an error that carries your message, except for a database's write a moment after a change: that one is warned about in the console and tried again at the next change.
 
 Without `storage`, text files are in the page's `localStorage` under `pictures:<scene>:file:<path>`, and databases are in IndexedDB: the database `pictures`, its store `files`, under the same key. `<scene>` is the scene's address, or `savedAs` when you give it.
+
+### Sound
+
+A scene makes sound with `playSound`, `makeSynth` and the rest ([Sound and music](sound.md)). Those functions only write commands, a batch at a time, and a player carries them out. On a web page the player is on the page: there is nothing to set up, and the first click or tap on the page turns the sound on, as browsers require.
+
+An app that runs scenes where they may not make sound (a frame that is locked down, a worker) can take the batches instead, by passing `sound` with a `send` function, and play them wherever it likes:
+
+```js
+import { createPlayer } from "./pictures/sound/synths.js"
+
+const player = createPlayer()          // in a page that may make sound
+
+runScene(box, {
+  src: "game.js",
+  sound: {
+    send(batch) { player.send(batch) },   // or post it to another frame, or to a native engine
+    read(id) { return player.read(id) },
+  },
+})
+```
+
+- **With `send`, the page plays nothing.** It makes no player, opens no sound card and never asks for the engine's file. Every batch the scene writes is handed to `send`. A batch is plain data, `{ synths: 1, now, cmds: [{ op: "sound", name: "laser", t }, …] }`, and goes through `postMessage` or JSON as it is. The format is synths.js's [command format](https://github.com/johnwylie70/synths.js/blob/main/docs/commands.md).
+- **Pausing and stopping are commands too.** `{ op: "master", pause: true }` is sent when the scene goes out of view or its tab is hidden, and `pause: false` when it comes back and once when the scene starts. When the scene stops or is run again, a batch with `stop` and then `close` is sent. A synths.js player carries all of them out.
+- **`read(id)`** is what a synth is doing now (`{ samples, level, notes }`), for a scope, a meter and the lit keys of a keyboard on the scene. It must answer at once. Leave it out and they show nothing.
+- **`readBytes(path)`**, a promise of a file's bytes, is asked for each sample the scene loads, and the bytes go in the batch. Without it the batch carries the sample's address, for the player to fetch.
+- **`ids`** is text that begins every id the scene's commands use, for two scenes that share one player.
+
+A page that plays but may fetch nothing can be handed the engine instead. Leave `send` out and pass the engine's file as bytes:
+
+```js
+runScene(box, { src: "game.js", sound: { wasm: bytes, worklet: "blob" } })
+```
+
+`wasm` is `sound/synths_core.wasm` as a `Uint8Array` or an `ArrayBuffer`. `worklet: "blob"` loads the audio worklet from text that is already inside the library, so no second file is asked for. Anything else in `sound` is an option of the player (`latency`, `context`, `destination`, `fallback`): `destination` is a node to play into, for an app that records.
+
+The scenes on one page share one player (one sound card and one engine), made with the options of the first scene that makes sound. Each scene is still paused and stopped alone, and the player closes when the last of them stops.
+
+Sound is kept silent by the browser until a click, a tap or a key press in the scene's own page. Inside an `<iframe>` that means inside the frame, unless the frame has `allow="autoplay"`.
 
 ### Picture methods
 
@@ -186,7 +227,7 @@ Then open `http://localhost:8000/examples/website/`. Any other static web server
 
 ## Things to know
 
-- **Nothing big is loaded.** A 2D scene needs `pictures.js` alone, which is about 15 KB. A 3D scene also loads three.js from the `three` folder, about 750 KB, once for the whole page. A scene that opens a database loads SQLite from the `sqlite` folder, about 700 KB, in the same way.
+- **Nothing big is loaded.** A 2D scene needs `pictures.js` alone, which is about 15 KB. A 3D scene also loads three.js from the `three` folder, about 750 KB, once for the whole page. A scene that opens a database loads SQLite from the `sqlite` folder, about 700 KB, in the same way. A scene that makes sound loads the `sound` folder, about 450 KB, and one with dials or a keyboard the `dials` folder, about 60 KB. A scene that uses none of these loads none of them.
 - **A loop that never waits** (`while (true)` without `await frame()`) freezes the whole page, not only its scene, because scenes run on the page's own thread. Use `draw()` and `update()`, or wait in every loop. A page that calls `runScene` itself can pass `stopStuckLoops: true` to have such a loop stopped.
 - **A page with scenes must be served** over `http://` or `https://`. Opening it straight from disk (`file://`) does not work, because the browser will not load the scene's `.js` file that way.
 - **Paths a scene loads are relative to the scene's file**, not the page: a scene at `scenes/game.js` that calls `loadImage("sprites/ship.png")` reads `scenes/sprites/ship.png`. The same goes for `loadText` and `loadJSON`. The one exception is `new THREE.TextureLoader().load(...)`, which is three.js's own loader and takes a path from the page.

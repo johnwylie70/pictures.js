@@ -262,6 +262,30 @@ const rows = await db.query("select name, points from best where points > ?", 10
 
 On a web page the browser keeps them, for that scene alone. An app that runs scenes can keep them as real files on the device. SQLite is loaded the first time a scene opens a database, and not at all by a scene that opens none. See [Files and databases](docs/files-and-databases.md), and [`examples/top_scores.js`](examples/top_scores.js).
 
+## Sound, and controls on the scene
+
+A scene can make sound and put dials on itself, with nothing to import:
+
+```js
+function onMouseDown() {
+  playSound("laser")
+}
+```
+
+```js
+const lead = makeSynth("lead")
+
+dial("cutoff", lead, "cutoff")
+scope(lead)
+keyboard(lead, { octave: 4 })
+
+function draw() {
+  background("midnightblue")
+}
+```
+
+There are game sounds (`playSound("coin")`), notes and tunes (`playNote("C4")`, `playNotes("C4 E4 G4 - C5", 0.25)`), synths whose settings are plain properties (`lead.cutoff = 800`), arpeggios and recorded sounds; and dials, sliders, buttons, switches, a piano keyboard, a scope and a meter that lay themselves out over the scene. The sound is made by [synths.js](https://github.com/johnwylie70/synths.js), in the `sound` folder, and the controls by [dials.js](https://github.com/johnwylie70/dials.js), in the `dials` folder. Each is loaded only by a scene that uses it: a scene with no sound and no controls loads exactly what it always did. See [Sound and music](docs/sound.md) and [Dials, sliders and a keyboard](docs/controls.md).
+
 ## Changing a picture
 
 pictures.js loads and draws pictures. The methods that change one (`await img.removeBackground()`, `await img.resize({ width: 800 })`, `await img.trace()` and more) are not part of this library: the app that runs a scene supplies them and does the work. [Circuitry Studio](https://www.circuitry.dev/docs/pictures/images) does, so a scene there can cut out a subject, resize, crop, trace a picture into shapes and read what is in it. On a page of your own, and in a page made with `pictures build`, a picture still loads and draws, and calling one of these stops the scene with a message that says they work inside Circuitry. An app of your own can supply them with the `pictures` option: see [Use it on your website](docs/website.md#picture-methods).
@@ -272,7 +296,9 @@ In [`examples/`](examples), each with a comment at the top saying what it shows.
 
 | File | What it is |
 |---|---|
-| `star_catcher.js` | A 2D game with sprites, a score and lives |
+| `star_catcher.js` | A 2D game with sprites, a score, lives and sound effects |
+| `synth_panel.js` | A synth with dials, a scope, a meter and a piano keyboard to play it |
+| `tune.js`, `arpeggio.js` | Music: a melody, bass and drums with `playNotes`, and Commodore 64 chords with `startArp` |
 | `space_rocks.js` | Space Rocks: steer a ship and shoot the rocks, which break in two and wrap round the edges |
 | `bat_and_ball.js` | Bat and Ball: one player against the computer |
 | `brick_breaker.js` | Brick Breaker: a bat, a ball and a wall of bricks |

@@ -13,6 +13,8 @@ Every name a pictures.js scene can use, by area, one line each. The link on each
 | Saved values | yes | yes |
 | Files | yes | yes |
 | Databases (SQLite) | yes | yes |
+| Sound and music | yes | not yet |
+| Dials, sliders and a keyboard | yes | not yet |
 | Image processing | Circuitry only | Circuitry only |
 
 This page is pictures.js's own index, in its own spellings. Pyctures has the same areas in Python: [the Pyctures function index](https://www.circuitry.dev/docs/pyctures/functions).
@@ -576,6 +578,58 @@ Explained in [Files and databases](files-and-databases.md#a-database).
 | `await db.query(sql, ...values)` | Asks a question (`select`) | `db.query` |
 | `await db.run(sql, ...values)` | Changes the database: `create table`, `insert`, `update`, `delete` | `db.run` |
 | `await db.close()` | Finishes with the database | `db.close` |
+
+## Sound and music
+
+Loaded only by a scene that uses one of these names.
+
+Explained in [Sound and music](sound.md).
+
+| Name | What it does | Python spelling |
+|---|---|---|
+| `playSound(name, volume)` | A ready-made game sound: `coin`, `jump`, `laser`, `explosion`, `hit`, `powerup`, `blip`, `click`, `zap`, `bounce`, `pop`, `win`, `lose` | `play_sound` |
+| `playNote(note, length, volume)` | A note (`"C4"`, or 60), a list of notes, or a chord by name (`"Cm7"`) | `play_note` |
+| `playNotes(notes, step, options)` | A tune, a step at a time: `"C4 E4 G4 - C5:2"`. `{ repeat: true }` goes round. Gives a tune with `stop()` | `play_notes` |
+| `makeSynth(name, settings)` | A synth of your own, from a ready-made one or from settings. It has `play`, `start`, `stop`, `playNotes`, `arp`, `startArp`, `set`, and every setting as a property | `make_synth` |
+| `loadSample(path, options)` | A recorded sound from a file beside the scene, as a synth | `load_sample` |
+| `playArp(chord, length, options)` | A chord as a fast arpeggio on one voice | `play_arp` |
+| `startArp(chord, options)` | An arpeggio that stays: `change(chord)` and `stop()` | `start_arp` |
+| `mainSynth()` | The synth `playNote` and `playNotes` use | `main_synth` |
+| `soundOutput()` | All the sound together, for a scope or a meter | `sound_output` |
+| `setEffects(settings)` | The echo, reverb and chorus every synth shares | `set_effects` |
+| `setVolume(amount)` | How loud everything is: 1 is normal | `set_volume` |
+| `muteSound()`, `unmuteSound()` | Silence, and back | `mute_sound`, `unmute_sound` |
+| `stopSound()` | Stops everything that is sounding or waiting to sound | `stop_sound` |
+| `setTempo(bpm)` | Beats a minute. Beat 0 is now | `set_tempo` |
+| `beats(n)` | How many seconds that many beats last | `beats` |
+| `beat()` | Which beat it is now | `beat` |
+| `soundTime()` | The sound clock, in seconds: what `{ at }` is read against | `sound_time` |
+| `noteNumber(note)` | A note's number: `noteNumber("A4")` is 69 | `note_number` |
+| `soundNames()`, `synthNames()`, `settingNames()` | Lists of the game sounds, the ready-made synths and a synth's settings | `sound_names`, `synth_names`, `setting_names` |
+| `playSong(path, options)`, `stopSong()` | A song from a `.mod` or `.xm` file beside the scene. Gives a song with `pause()`, `resume()`, `stop()` and `volume` | `play_song`, `stop_song` |
+
+## Dials, sliders and a keyboard
+
+Loaded only by a scene that calls one of these names.
+
+Explained in [Dials, sliders and a keyboard](dials.md).
+
+| Name | What it does |
+|---|---|
+| `dial(label, min, max, start)` | A dial for a number: `speed.value` |
+| `dial(label, target, "setting")` | A dial that is a setting of a synth, or a property of any object |
+| `slider(…)` | The same, as a slider |
+| `button(label, onPress)` | A button: `fire.pressed`, `fire.held` |
+| `toggle(label, on)` | A switch: `mute.on` |
+| `select(label, choices, start)` | One of a list: `wave.value` |
+| `keyboard(target, options)` | A piano keyboard that plays a synth |
+| `scope(source)` | A live line: the wave a synth is making, or any list of numbers |
+| `meter(source)` | A level as a bar of lights |
+| `label(text)` | Words in the row |
+| `row()` | Starts a new row |
+| `layout(options)` | Where the rows go, and how big |
+| `theme(colours)` | The colours |
+| `over(x, y)` | Is a control at this point? |
 
 ## Other names
 

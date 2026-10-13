@@ -1,5 +1,21 @@
 # Changes
 
+## Unreleased
+
+Everything written for 0.1.0 still runs, and a scene that uses nothing below loads exactly what it did.
+
+### New
+
+- Sound, with nothing to import: `playSound("coin")` is a ready-made game sound, `playNote("C4")` a note, `playNotes("C4 E4 G4 - C5", 0.25, { repeat: true })` a tune, and `const lead = makeSynth("lead")` a synth whose settings are plain properties (`lead.cutoff = 800`). Also `loadSample("kick.wav")`, `playArp("Cm7")` and `startArp("Am")` for Commodore 64 chords, `setEffects`, `setVolume`, `muteSound`, `stopSound`, `setTempo`, `beats` and `beat`. The sound is made by synths.js, in the new `sound` folder, and its engine runs on the browser's audio thread.
+- Controls on the scene, with nothing to import: `dial("speed", 0, 10)` is a number to read, `dial("cutoff", lead, "cutoff")` is that setting of a synth, `keyboard(lead)` is a piano keyboard that plays it and `scope(lead)` draws its wave. Also `slider`, `button`, `toggle`, `select`, `meter`, `label`, `row`, `layout`, `theme` and `over`. They are drawn on a canvas of their own over the scene's, from the new `dials` folder (dials.js). A press on a control is not the scene's: `onMouseDown` is not called for it.
+- Each of the two is loaded only by a scene that uses one of its names. A scene that uses neither asks for no new file and is run exactly as before.
+- The first click, tap or key press on the page turns the sound on, as browsers require. Sound is paused while its scene is out of view or its tab is hidden, and stops when the scene stops or is run again.
+- The Python spellings work: `play_sound`, `make_synth`, `lead.filter_cutoff`, `on_change`.
+- A mistake is said in plain words with its line: `playSound("lazer"): there is no sound called "lazer". Did you mean "laser"?`
+- An app that runs scenes can take the sound commands and play them itself, with `runScene`'s new `sound` option (`send(batch)`, `pause()`, `resume()`, `read(id)`, `readBytes(path)`); the page then makes no sound and loads no engine. Or it can hand the page the engine as bytes (`sound: { wasm, worklet: "blob" }`) for a page that may fetch nothing. What `runScene` gives back has `sound`, the page's player.
+- `pictures build` copies the `sound` and `dials` folders for a scene that uses them.
+- New examples: `synth_panel.js`, `tune.js` and `arpeggio.js`, and Star Catcher has sound effects. New docs pages: Sound and music, and Dials, sliders and a keyboard.
+
 ## 0.1.0 (2026-10-11)
 
 First release.
