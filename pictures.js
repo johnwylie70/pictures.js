@@ -53,6 +53,7 @@
  *   loadSample, playArp…    settings are plain properties (`lead.cutoff = 800`). Also note, chord, rest, startArp, setEffects, setVolume,
  *                           muteSound, stopSound, setTempo, beats, beat and soundTime. The first click or tap turns the
  *                           sound on; it pauses while the scene is out of view and stops with the scene
+ *   soundButton, askAboutSound  a speaker that switches the sound off and on; a demo's card that asks first
  *   onMidiNote, onMidiControl,  MIDI: a scene's own `function onMidiNote(note, velocity, channel) { }` is called when a key of a MIDI
  *   lead.playFromMidi()     keyboard goes down (and `onMidiNoteOff`, `onMidiControl(number, value, channel)`, `onMidi(message)`,
  *                           `onMidiDevices(devices)`); `lead.playFromMidi()` has the keyboard play a synth, `lead.learn("cutoff")`
@@ -131,6 +132,8 @@ const NOTATION_NAMES = ['showNotes', 'makeSheet']
 /* EFFECT_NAMES:BEGIN */
 const EFFECT_NAMES = ['aurora', 'bass', 'bassShake', 'beatFlash', 'bloom', 'blur', 'bokeh', 'brighten', 'bulge', 'cartoon', 'caustics', 'checkerFloor', 'clearEffects', 'clouds', 'colorBleed', 'colorCycle', 'colourBleed', 'colourCycle', 'contrast', 'copperBars', 'crosshatch', 'crt', 'dither', 'dots', 'droste', 'duotone', 'dust', 'edges', 'effectNames', 'effectsQuality', 'emboss', 'fire', 'fisheye', 'flow', 'fog', 'frosted', 'glassTiles', 'glitch', 'glow', 'godRays', 'gradientMap', 'grain', 'halftone', 'heatHaze', 'hexagons', 'highs', 'hue', 'interference', 'interlace', 'invert', 'kaleidoscope', 'led', 'letters', 'lightLeaks', 'lightRays', 'lightning', 'listenTo', 'look', 'lookNames', 'loudness', 'matrixRain', 'metaballs', 'mids', 'mirror', 'moire', 'motionBlur', 'nightVision', 'oil', 'paletteNames', 'pixelate', 'plasma', 'posterize', 'pulse', 'punch', 'rain', 'rainbowEdges', 'react', 'recordVideo', 'renderFrames', 'rgbSplit', 'ripple', 'rotozoom', 'saturate', 'saveVideo', 'scanlines', 'sepia', 'shader', 'shake', 'sharpen', 'sketch', 'smear', 'snow', 'softFocus', 'solarize', 'spectrumBars', 'spectrumRing', 'spinBlur', 'stainedGlass', 'starfield', 'streaks', 'stutter', 'swirl', 'thermal', 'threshold', 'tile', 'tiltShift', 'tint', 'trails', 'tunnel', 'twister', 'vignette', 'voronoi', 'warp', 'waveformRing', 'waves', 'wobble', 'zoomBlur']
 /* EFFECT_NAMES:END */
+/** The sound button and a demo's card: manners/manners.js, for a scene that names one of these. */
+const MANNERS_NAMES = ['soundButton', 'askAboutSound', 'soundIsOn']
 /** The functions a scene may define, Python spelling beside the JavaScript one. */
 const HOOKS = {
   setup: ['setup'], update: ['update'], draw: ['draw'],
@@ -589,20 +592,20 @@ const midiHooksOf = (code) => [...new Set([...code.matchAll(MIDI_DEFINED)].map((
 export function sceneUses(source) {
   const code = codeOf(source)
   const notation = usesAny(code, NOTATION_NAMES)
-  return { three: uses3D(source), sound: notation || usesAny(code, SOUND_NAMES) || midiHooksOf(code).length > 0, dials: usesAny(code, DIAL_NAMES), scenes: usesScenes(code), notation, effects: usesAny(code, EFFECT_NAMES) }
+  return { three: uses3D(source), sound: notation || usesAny(code, SOUND_NAMES) || midiHooksOf(code).length > 0, dials: usesAny(code, DIAL_NAMES), scenes: usesScenes(code), notation, effects: usesAny(code, EFFECT_NAMES), manners: usesAny(code, MANNERS_NAMES) }
 }
 
 /**
  * A sibling library, loaded the first time a scene uses it: the module in its folder beside this file.
  * A failure is not remembered, so the next scene tries again.
  */
-const SIBLINGS = { sound: 'sound/synths.js', dials: 'dials/dials.js', scenes: 'scenes/scenes.js', notation: 'notation/notation.js', effects: 'visualfx/visualfx.js' }
+const SIBLINGS = { sound: 'sound/synths.js', dials: 'dials/dials.js', scenes: 'scenes/scenes.js', notation: 'notation/notation.js', effects: 'visualfx/visualfx.js', manners: 'manners/manners.js' }
 const siblings = {}
 function loadSibling(which) {
   const address = new URL(SIBLINGS[which], BASE).href
   siblings[which] ??= import(address).catch((e) => {
     delete siblings[which]
-    throw new Error(`This scene uses ${which === 'sound' ? 'sound' : which === 'scenes' ? 'scenes' : which === 'notation' ? 'sheet music' : which === 'effects' ? 'effects' : 'on-screen controls'}, and that part of pictures.js could not be loaded: ${address} (${e?.message ?? e})`)
+    throw new Error(`This scene uses ${which === 'sound' ? 'sound' : which === 'scenes' ? 'scenes' : which === 'notation' ? 'sheet music' : which === 'effects' ? 'effects' : which === 'manners' ? 'the sound button' : 'on-screen controls'}, and that part of pictures.js could not be loaded: ${address} (${e?.message ?? e})`)
   })
   return siblings[which]
 }
@@ -855,6 +858,7 @@ export function runScene(container, options = {}) {
   // A host that records the scene a frame at a time says so, and at what rate (see `stepped`).
   const asked = options.stepped ?? options.sound?.stepped
   const stepped = asked ? { fps: asked.fps > 0 ? asked.fps : 60, sampleRate: asked.sampleRate } : null
+  let manners = null // its sound button (manners/manners.js)
   let stopRun = () => {}
   // Resolved when the run that is going has finished its top level and its setup(), or has failed or been stopped.
   let settled = () => {}
@@ -992,7 +996,7 @@ export function runScene(container, options = {}) {
       const wantsSound = wantsNotation || usesAny(code, SOUND_NAMES) || midiHooks.length > 0, wantsControls = usesAny(code, DIAL_NAMES)
       const wantsScenes = usesScenes(code)
       const wantsEffects = usesAny(code, EFFECT_NAMES)
-      const [{ THREE, addons }, soundLib, controlsLib, scenesLib, notationLib, effectsLib] = await Promise.all([is3D ? loadThree() : {}, wantsSound && loadSibling('sound'), wantsControls && loadSibling('dials'), wantsScenes && loadSibling('scenes'), wantsNotation && loadSibling('notation'), wantsEffects && loadSibling('effects')])
+      const [{ THREE, addons }, soundLib, controlsLib, scenesLib, notationLib, effectsLib, mannersLib] = await Promise.all([is3D ? loadThree() : {}, wantsSound && loadSibling('sound'), wantsControls && loadSibling('dials'), wantsScenes && loadSibling('scenes'), wantsNotation && loadSibling('notation'), wantsEffects && loadSibling('effects'), usesAny(code, MANNERS_NAMES) && loadSibling('manners')])
       if (!live()) return
       // three.js loaders take the same table (one scene to a page when it is used).
       if (THREE && files) THREE.DefaultLoadingManager.setURLModifier((url) => files[url] || url)
@@ -1096,6 +1100,7 @@ export function runScene(container, options = {}) {
       // "a", and the name that went down is the one that must come out.
       const held = new Map()
       listen(canvas, 'keydown', (e) => {
+        if (manners?.key(e)) return
         if (e.key.startsWith('Arrow') || e.key === ' ') e.preventDefault()
         modifiers(e)
         // A key held down repeats on the keyboard: it went down once, and each repeat is told apart.
@@ -1108,6 +1113,7 @@ export function runScene(container, options = {}) {
         call(hooks.keyDown, e.key, e.code)
       })
       listen(canvas, 'keyup', (e) => {
+        if (manners?.key(e)) return
         modifiers(e)
         const key = held.get(e.code) ?? e.key
         held.delete(e.code)
@@ -1911,6 +1917,7 @@ export function runScene(container, options = {}) {
         // RECORDED A FRAME AT A TIME: the sound is made on the clock the recorder moves, by a player of the scene's own
         // that has no sound card (synths.js's createSteppedPlayer). The host moves it and takes the samples.
         if (stepped && !send) { playing.stepped = { fps: stepped.fps, ...(stepped.sampleRate ? { sampleRate: stepped.sampleRate } : {}) }; playing.share = false }
+        if (playing.onState) { const theirs = playing.onState; playing.onState = (state) => theirs(manners?.quiet ?? state) }
         // THE MICROPHONE AND SAVED SOUND are the player's too: `options.microphone` is a host's own microphone (a stream, or
         // frames it pushes) or false for none, and `options.save` takes the WAV files saveSound makes. With neither said, a
         // host that keeps the scene's files (`storage.writeBytes`) is given a saved sound as a file among them, by its name;
@@ -1941,7 +1948,7 @@ export function runScene(container, options = {}) {
         let quiet = null
         hush = () => {
           // A scene that is being recorded is given every frame, seen or not, and its sound goes with them.
-          const now = !stepped && (!inView || document.hidden)
+          const now = !stepped && (!inView || document.hidden || !!manners?.asking)
           if (now === quiet) return
           quiet = now
           quiet ? sound.pause() : sound.resume()
@@ -2015,6 +2022,15 @@ export function runScene(container, options = {}) {
         // A film the scene makes of itself has the scene's own sound, when that is made a frame at a time (`stepped`).
         for (const n of ['renderFrames', 'recordVideo']) { const film = fx[n]; if (more[n] === film) more[n] = more[snake(n)] = (o = {}) => film({ sound: () => voice?.player, ...o }) }
       }
+      // --- THE SOUND BUTTON (manners/manners.js). `answering`: its card is up, and the scene waits.
+      let answering = false, behind = false
+      if (mannersLib) {
+        const mine = manners = mannersLib.keep({
+          container, canvas, source, load, save, sound, more, told: options.sound?.onState, panel: () => panel, player: () => voice?.player, recorded: !!stepped,
+          hold: (waits) => { answering = waits; behind = false; last = 0; hush?.() },
+        })
+        cleanup.push(() => { mine.close(); if (manners === mine) manners = null })
+      }
       let last = 0
       let counted = 0
       let countedSince = 0
@@ -2043,6 +2059,11 @@ export function runScene(container, options = {}) {
             countedSince = now
             sections = {}
           }
+        }
+        if (answering) {
+          if (looping && !behind) { behind = true; call(hooks.update, 1 / 60); call(hooks.draw) }
+          last = 0
+          return
         }
         const dt = last ? Math.min(0.1, (now - last) / 1000) : 1 / (stepped ? stepped.fps : 60)
         last = now
@@ -2120,7 +2141,7 @@ export function runScene(container, options = {}) {
   start()
   return {
     get canvas() { return canvas },
-    get sound() { return voice?.player ?? null },
+    get sound() { return manners?.quiet ? null : voice?.player ?? null },
     get scenes() { return stage },
     get transition() { return changing?.running ?? null },
     /** A promise of the scene having run its top level and its setup(): from then on every frame is update() and draw(). It is also kept when the scene fails or is stopped first. */

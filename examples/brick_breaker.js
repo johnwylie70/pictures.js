@@ -1,8 +1,11 @@
 // Brick Breaker: bounce the ball off your bat and knock out every brick. You have 3 balls.
 // Use: left and right move the bat. Or drag left and right.
-// Try changing: COLOURS, one for each row of bricks; 100, how wide the bat is; -330, how fast the ball goes up.
+// Try changing: COLOURS, one for each row of bricks; 100, how wide the bat is; -330, how fast the ball goes up;
+// the sounds, a line each: look for playSound ("pop" to "coin", or 3, how much higher each row sounds).
 //
 // Run it:   pictures run brick_breaker.js
+
+soundButton()                   // a speaker in the corner to switch the sound off (so does M)
 
 const COLOURS = ["tomato", "orange", "gold", "mediumseagreen", "dodgerblue"]   // one for each row
 
@@ -61,20 +64,25 @@ function update(dt) {
     return
   }
   ball.update(dt)
-  ball.bounce("left", "right", "top")
+  if (ball.bounce("left", "right", "top")) playSound("click", 0.4)
   // Off the bat the ball goes up, and further sideways the nearer the end it met.
   if (ball.vy > 0 && ball.touches(bat)) {
     ball.vy = -ball.vy
     ball.vx = (ball.x - bat.x) * 7
+    playSound("bounce", 0.5)
   }
   const brick = ball.hit(bricks)
   if (brick) {
     remove(bricks, brick)
     ball.vy = -ball.vy
     score += 1
+    const row = Math.round((brick.y - 70) / 26)
+    playSound("pop", 0.6, { pitch: (4 - row) * 3 })    // the higher the row, the higher the pop
+    if (bricks.length === 0) playSound("win", 0.6)
   }
   if (ball.y > height) {
     lives -= 1
+    playSound(lives === 0 ? "lose" : "zap", 0.5)
     serve()
   }
 }

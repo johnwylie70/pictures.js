@@ -1,8 +1,11 @@
 // Snake: eat the apples and grow, without running into a wall or yourself. It is played on a grid of squares, and your best score is kept.
 // Use: the arrow keys turn the snake. Or tap the side of its head you want it to turn to.
-// Try changing: SQUARE, the size of a square; 0.15, the seconds between steps (smaller is faster); the colours in draw().
+// Try changing: SQUARE, the size of a square; 0.15, the seconds between steps (smaller is faster); the colours in draw();
+// the sounds, a line each: look for playSound ("coin" to "pop" or "powerup").
 //
 // Run it:   pictures run snake.js
+
+soundButton("bottom right")     // a speaker in the corner to switch the sound off (so does M)
 
 const SQUARE = 24               // the size of one square of the grid
 
@@ -46,7 +49,9 @@ function moveApple() {
 
 // Turn, unless that would send the snake straight back into itself.
 function turnTo(x, y) {
-  if (x !== -going.x || y !== -going.y) turn = { x: x, y: y }
+  if (x === -going.x && y === -going.y) return
+  if (x !== turn.x || y !== turn.y) playSound("click", 0.3)
+  turn = { x: x, y: y }
 }
 
 function onKeyDown(key) {
@@ -74,6 +79,7 @@ function step() {
   const outside = head.x < 0 || head.y < 0 || head.x >= columns || head.y >= rows
   if (outside || onSnake(head.x, head.y)) {
     alive = false
+    playSound(score > best ? "win" : "lose", 0.6)
     if (score > best) {
       best = score
       save("best", best)        // still there the next time you play
@@ -83,6 +89,7 @@ function step() {
   snake.unshift(head)           // a new head at the front
   if (head.x === apple.x && head.y === apple.y) {
     score += 1
+    playSound("coin", 0.5, { pitch: Math.min(score, 12) })   // each apple a little higher, up to an octave
     moveApple()
   } else {
     snake.pop()                 // and the tail moves up, unless it has just eaten

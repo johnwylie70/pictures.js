@@ -1,8 +1,11 @@
 // Space Rocks: steer a ship, shoot the rocks, and do not get hit. A rock breaks in two when it is shot.
 // Use: left and right turn, up fires the engine, space shoots. Or tap to shoot, and hold to fly towards your finger.
-// Try changing: 3, the rocks in a wave; 500, the speed of a bullet; 7, the sides of a rock.
+// Try changing: 3, the rocks in a wave; 500, the speed of a bullet; 7, the sides of a rock;
+// the sounds, a line each: look for playSound ("laser" to "zap" or "shoot") and the little tune in playNotes.
 //
 // Run it:   pictures run space_rocks.js
+
+soundButton()                   // a speaker in the corner to switch the sound off (so does M)
 
 const ship = new Sprite(drawShip, 0, 0, 30)
 let rocks = []
@@ -51,6 +54,7 @@ function shoot() {
   bullet.angle = ship.angle
   bullet.push(500)              // off it goes, the way the ship faces
   bullets.push(bullet)
+  playSound("laser", 0.3)
 }
 
 function onMouseDown(x, y) {
@@ -86,6 +90,7 @@ function update(dt) {
   if (rocks.length === 0) {     // a new wave, starting on the left edge
     for (let i = 0; i < 3; i++) addRock(0, random(height), 80)
     safe = 2
+    if (score > 0) playNotes("C5 E5 G5 C6", 0.08, { volume: 0.4 })    // a wave is cleared
   }
   safe -= dt
   steer(dt)
@@ -103,6 +108,7 @@ function update(dt) {
       remove(bullets, bullet)
       remove(rocks, rock)
       score += 10
+      playSound("explosion", 0.5, { pitch: rock.size > 40 ? -5 : rock.size > 20 ? 0 : 7 })    // a small rock pops higher
       if (rock.size > 20) {     // a big rock breaks in two
         addRock(rock.x, rock.y, rock.size / 2)
         addRock(rock.x, rock.y, rock.size / 2)
@@ -113,6 +119,7 @@ function update(dt) {
   }
   if (safe <= 0 && ship.hit(rocks)) {
     lives -= 1
+    playSound(lives === 0 ? "lose" : "hit", 0.7)
     newShip()
   }
 }

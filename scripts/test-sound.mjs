@@ -75,7 +75,7 @@ for (const [what, source, want] of USES) {
 }
 {
   // The examples: those written before there were controls or sound use neither still, whatever names the libraries gain.
-  const WITH = { 'arpeggio.js': 'S-', 'star_catcher.js': 'S-', 'tune.js': 'S-', 'midi_lights.js': 'S-', 'midi_keyboard.js': 'SC', 'sampler.js': 'SC', 'synth_panel.js': 'SC', 'voice_changer.js': 'SC' }
+  const WITH = { 'arpeggio.js': 'S-', 'star_catcher.js': 'S-', 'bat_and_ball.js': 'S-', 'brick_breaker.js': 'S-', 'snake.js': 'S-', 'space_rocks.js': 'S-', 'tune.js': 'S-', 'midi_lights.js': 'S-', 'midi_keyboard.js': 'SC', 'sampler.js': 'SC', 'synth_panel.js': 'SC', 'voice_changer.js': 'SC' }
   const files = (await readdir(join(ROOT, 'examples'))).filter((f) => f.endsWith('.js'))
   const wrong = []
   for (const f of files) {
@@ -83,7 +83,7 @@ for (const [what, source, want] of USES) {
     const got = (uses.sound ? 'S' : '-') + (uses.dials ? 'C' : '-')
     if (got !== (WITH[f] || '--')) wrong.push(`${f}: ${got}`)
   }
-  say(!wrong.length && files.length - Object.keys(WITH).length >= 28, 'node', `what a scene uses: the ${files.length - Object.keys(WITH).length} examples with no sound and no controls load neither library, and the ${Object.keys(WITH).length} with them load theirs`, wrong)
+  say(!wrong.length && files.length - Object.keys(WITH).length >= 24, 'node', `what a scene uses: the ${files.length - Object.keys(WITH).length} examples with no sound and no controls load neither library, and the ${Object.keys(WITH).length} with them load theirs`, wrong)
 }
 {
   // The start-up cost for a scene that uses neither: reading its text once. The longest example, a hundred times.

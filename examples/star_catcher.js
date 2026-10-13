@@ -6,6 +6,8 @@
 // Run it:   pictures run star_catcher.js
 // Share it: pictures build star_catcher.js -o site/
 
+soundButton()                   // a speaker in the corner to switch the sound off (so does M)
+
 const player = new Sprite("🚀", 200, 400, 48)
 let stars = []
 let rocks = []

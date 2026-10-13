@@ -109,7 +109,7 @@ if (command === 'run') {
   // Sound, on-screen controls, scenes, sheet music and effects go with a scene that uses them, by the same test the scene is run with.
   const { sceneUses } = await import(pathToFileURL(join(HOME, 'pictures.js')).href)
   const uses = sceneUses(code)
-  for (const [part, folder] of [['sound', 'sound'], ['dials', 'dials'], ['scenes', 'scenes'], ['notation', 'notation'], ['effects', 'visualfx']]) if (uses[part]) await cp(join(HOME, folder), join(out, 'pictures', folder), { recursive: true })
+  for (const [part, folder] of [['sound', 'sound'], ['dials', 'dials'], ['scenes', 'scenes'], ['notation', 'notation'], ['effects', 'visualfx'], ['manners', 'manners']]) if (uses[part]) await cp(join(HOME, folder), join(out, 'pictures', folder), { recursive: true })
   await writeFile(join(out, 'index.html'), page(scene, 'pictures/pictures.js', false))
   console.log(`Built ${out} (open index.html from a web server, or put the folder on any static host)`)
 } else {

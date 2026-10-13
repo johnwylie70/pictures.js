@@ -509,6 +509,8 @@ muteSound()         // silence, and unmuteSound() brings it back
 stopSound()         // stops everything that is sounding or waiting to sound
 ```
 
+`muteSound()` is one line of code; for a switch the person at the screen can press, see [A sound button, and asking first](#a-sound-button-and-asking-first).
+
 Sound stops by itself when the scene stops or is run again. Several scenes on one page share one sound card, and each is stopped and paused alone. It is paused while the scene is scrolled out of view or its tab is in the background, as the frames are, and carries on when you come back.
 
 ### If the sound clicks
@@ -538,9 +540,78 @@ const { left, right, sampleRate } = scene.sound.stepped.take()   // the samples 
 
 Sixty frames are 48000 samples: every frame is `sampleRate / fps` of them, with the remainder carried, so nothing drifts over a long film. `scene.sound` is the library's stepped player, and [its page for apps](https://github.com/johnwylie70/synths.js/blob/main/docs/commands.md) has the rest. If you would rather not write the loop, [visualfx.js](https://github.com/johnwylie70/visualfx.js) has it: `await recordVideo({ seconds: 20, fps: 60, sound: scene })` gives a WebM file with the sound in it.
 
+## A sound button, and asking first
+
+Two lines, each for its own job. Neither happens unless you write it.
+
+### The button
+
+```js
+soundButton()
+```
+
+A small speaker in a corner of the scene. A click or a tap on it switches all of the scene's sound off, and another switches it back on; the picture on it shows which. The **M** key does the same while the scene has the keyboard. The choice is remembered for this scene on this device, with its [saved values](saved-values.md), so a scene that was switched off is still off the next time. It asks nothing: your game starts as it always did.
+
+```js
+soundButton("bottom left")          // a corner: "top right" unless you say, "bottom right", "top left"
+```
+
+| Option | What it does |
+|---|---|
+| `corner` | `"top right"`, `"bottom right"`, `"top left"` or `"bottom left"` |
+| `size` | How many points across. Unless you say: 34 with a mouse, 44 where a finger does the pointing |
+| `inset` | How far in from the two edges of its corner, in points: a number, or `[across, down]` to sit beside something your scene draws in that corner. Unless you say: 8, or 10 for a finger |
+| `colour` | `"auto"` looks at the scene under the button and is light on a dark scene and dark on a light one; or say `"light"` or `"dark"` |
+| `key` | The key that switches the sound: `"m"` unless you say, `false` for none |
+
+- **It is not drawn by your scene.** It is laid over the picture, costs nothing in a frame, keeps off any [dials and sliders](dials.md), and goes when the scene stops. A tap on it is not a tap on your game: `onMouseDown` is not called.
+- **A scene that reads M itself** (it has `"m"` in its code) keeps M, and the button leaves it alone.
+
+To read the switch, or turn it yourself:
+
+```js
+const sound = soundButton()
+
+function draw() {
+  background("midnightblue")
+  if (!soundIsOn()) text("Sound is off: press M", 20, 30, "white", 16)
+}
+```
+
+`soundIsOn()` is `true` or `false`. `sound.on` is the same thing, and can be set: `sound.on = false`. `sound.over(x, y)` says whether a point of the scene is on the button, and `sound.remove()` takes the button away. `muteSound()` and `unmuteSound()` are the same switch: the button shows what they did. Only what a person chose is remembered, not what your code switched.
+
+### Asking first, in a demo
+
+A demo is something other people open, perhaps in a quiet room. One line has it ask before it makes a sound:
+
+```js
+askAboutSound()
+```
+
+Before anything is heard a card is laid over the scene: "This demo has sound", with two big buttons, "Play with sound" and "Play without sound". Nothing sounds until one is chosen, and the game waits behind the card: its first frame is shown, and `update` and `draw` are not called again until the answer. "Play with sound" is also the click a browser needs before it lets a page make sound. The line puts the sound button up as well, if the scene has not, so a demo needs only this one line.
+
+It is for demos you publish. A game of your own does not need it, and nothing shows the card unless the scene has this line.
+
+```js
+askAboutSound("Music and sound effects")                      // say what kind of sound it is
+askAboutSound({ withSound: "Sound on", withoutSound: "Quiet" })
+```
+
+| Option | What it does |
+|---|---|
+| `title`, `withSound`, `withoutSound` | The card's words. The title can be given by itself, first |
+| `remember` | `true` asks only until there is an answer, and uses that answer from then on |
+| `wait` | `false` keeps the scene running behind the card (still silent) |
+| `corner`, `size`, `inset`, `colour`, `key` | For the button it puts up, as above |
+
+- **When it asks.** Every time the scene is opened afresh, with last time's answer ready under Enter: the card is there so that nobody is surprised, and yesterday's answer is not today's. It does not ask again when the scene is run again within five minutes of an answer, so working on a demo is not a card at every run.
+- **Keys on the card.** Enter or Space presses the button that has the keyboard, the arrows or Tab go between the two, and Escape is "Play without sound". No key and no tap reaches the game while the card is up.
+- **What was asked for before the answer.** A sound effect or a note is dropped, because played late it would be wrong; a tune that repeats, or a song, starts at "Play with sound".
+- While the card is up `soundIsOn()` is `false` and `sound.asking` is `true`.
+
 ## The Python spellings
 
-Every name has its Python spelling too, so a scene comes across from [Pyctures](from-python.md) with little more than its syntax changed: `play_sound`, `play_note`, `play_notes`, `make_synth`, `load_sample`, `stop_sound`, `set_volume`, `set_tempo`, `sound_time`, `on_midi_note`, `on_midi_control`, `send_midi_note`, `midi_devices`, `lead.play_from_midi()`, `use_microphone`, `record_sound`, `start_recording`, `record_output`, `save_sound`, `take.on_done(…)`, `take.sound_like(mic)`. Settings too: `lead.vibrato_rate = 6`.
+Every name has its Python spelling too, so a scene comes across from [Pyctures](from-python.md) with little more than its syntax changed: `play_sound`, `play_note`, `play_notes`, `make_synth`, `load_sample`, `stop_sound`, `set_volume`, `set_tempo`, `sound_time`, `on_midi_note`, `on_midi_control`, `send_midi_note`, `midi_devices`, `lead.play_from_midi()`, `sound_button`, `ask_about_sound`, `sound_is_on`, `use_microphone`, `record_sound`, `start_recording`, `record_output`, `save_sound`, `take.on_done(…)`, `take.sound_like(mic)`. Settings too: `lead.vibrato_rate = 6`.
 
 ## Mistakes
 
@@ -562,6 +633,8 @@ The sound is made by [synths.js](https://github.com/johnwylie70/synths.js), whic
 A page that is not served over `https` (or from `localhost`, as `pictures run` does) has no audio thread to use. The same engine then runs on the page's own thread, which sounds the same and may crackle when the page is busy; the console says so once.
 
 An app that runs scenes can take the sound commands and play them itself, can supply MIDI or a microphone where the browser has none, and can keep the files `saveSound` makes: see [Use it on your website](website.md#sound).
+
+The sound button and the card a demo asks with are a small part of their own, `manners/manners.js` beside `pictures.js`, fetched only by a scene that names `soundButton`, `askAboutSound` or `soundIsOn`. A button by itself does not load the sound library.
 
 ## Related
 

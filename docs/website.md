@@ -167,6 +167,8 @@ runScene(box, {
 - **`readBytes(path)`**, a promise of a file's bytes, is asked for each sample the scene loads, and the bytes go in the batch. Without it the batch carries the sample's address, for the player to fetch.
 - **`ids`** is text that begins every id the scene's commands use, for two scenes that share one player.
 
+- **`onState(state)`** is told the page's player's state: `"waiting"` while the browser keeps the page silent until a tap, then `"on"`. An app can show its own "tap for sound" from it. A demo that [asks about sound](sound.md#a-sound-button-and-asking-first) asks for itself: while its card is up the app is told `"asking"`, and while its sound is switched off `"off"`, in place of `"waiting"`, and `runScene(…).sound` is `null` then, so the app has nothing to ask a tap for. With `send`, the card's answer and the button reach the app as `{ op: "master", mute }`, and the wait behind the card as `pause`.
+
 A page that plays but may fetch nothing can be handed the engine instead. Leave `send` out and pass the engine's file as bytes:
 
 ```js

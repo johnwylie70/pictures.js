@@ -1,8 +1,11 @@
 // Bat and Ball: keep the ball out of your goal, and get it past the computer's bat. First to 5 wins.
 // Use: up and down move your bat, the left one. Or drag up and down.
-// Try changing: 230, the computer's speed (bigger is harder); 90, how tall the bats are; 1.08, how much faster the ball gets with each hit.
+// Try changing: 230, the computer's speed (bigger is harder); 90, how tall the bats are; 1.08, how much faster the ball gets with each hit;
+// the sounds, a line each: look for playSound ("blip" to "pop" or "bounce", or 0.5, how loud).
 //
 // Run it:   pictures run bat_and_ball.js
+
+soundButton()                   // a speaker in the corner to switch the sound off (so does M)
 
 const you = Sprite.box(0, 0, 14, 90)
 const computer = Sprite.box(0, 0, 14, 90)
@@ -50,6 +53,7 @@ function hitBall(bat, direction) {
   ball.vx = direction * Math.abs(ball.vx) * 1.08
   ball.vy = (ball.y - bat.y) * 9
   ball.limit(900)
+  playSound("blip", 0.5, { pitch: direction * 3 })      // your bat a little higher than the computer's
 }
 
 function update(dt) {
@@ -61,16 +65,18 @@ function update(dt) {
   wait -= dt
   if (wait > 0) return
   ball.update(dt)
-  ball.bounce("top", "bottom")
+  if (ball.bounce("top", "bottom")) playSound("click", 0.4)
   // Only a ball coming towards a bat is sent back, so it can never stick to one.
   if (ball.vx < 0 && ball.touches(you)) hitBall(you, 1)
   if (ball.vx > 0 && ball.touches(computer)) hitBall(computer, -1)
   if (ball.x < 0) {
     computerScore += 1
+    playSound(gameOver() ? "lose" : "zap", 0.5)
     serve(1)
   }
   if (ball.x > width) {
     yourScore += 1
+    playSound(gameOver() ? "win" : "coin", 0.6)
     serve(-1)
   }
 }

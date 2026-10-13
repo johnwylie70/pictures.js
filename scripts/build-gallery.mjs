@@ -168,6 +168,9 @@ function serve(root) {
   return new Promise((done) => server.listen(0, () => done(server)))
 }
 
+/** A scene with sound asks first, and waits: "Play without sound", so the picture is of the scene and not of the card. */
+const quiet = async (page) => { if (await page.locator('[data-sound-card]').count()) await page.click('[data-sound-card] button[data-answer=off]') }
+
 /** A picture of each scene after it has run for a moment. */
 async function shots() {
   const from = process.env.PLAYWRIGHT || 'playwright'
@@ -179,6 +182,7 @@ async function shots() {
   const take = async (file, out) => {
     await page.goto(`${at}/${file.replace(/\.js$/, '.html')}`)
     await page.waitForSelector('[data-pictures-status="running"], [data-pictures-status="finished"]', { timeout: 15000 })
+    await quiet(page)
     await page.waitForTimeout(SHOT_AFTER[file] ?? 2500)
     await mkdir(dirname(out), { recursive: true })
     await page.locator('.scene').screenshot({ path: out, type: 'jpeg', quality: 85 })
@@ -216,6 +220,7 @@ async function gif(seconds = 3, fps = 15) {
     const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
     await page.goto(`${at}/${file.replace(/\.js$/, '.html')}`)
     await page.waitForSelector('[data-pictures-status="running"], [data-pictures-status="finished"]', { timeout: 15000 })
+    await quiet(page)
     await page.waitForTimeout(1500)
     for (let i = 0; i < seconds * fps; i++) {
       await page.locator('.scene').screenshot({ path: join(frames, `f${String(n++).padStart(5, '0')}.png`) })

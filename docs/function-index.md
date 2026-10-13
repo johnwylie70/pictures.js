@@ -633,6 +633,9 @@ Explained in [Sound and music](sound.md).
 | `setVolume(amount)` | How loud everything is: 1 is normal | `set_volume` |
 | `muteSound()`, `unmuteSound()` | Silence, and back | `mute_sound`, `unmute_sound` |
 | `stopSound()` | Stops everything that is sounding or waiting to sound | `stop_sound` |
+| `soundButton(options)` | A small speaker in a corner that switches the scene's sound off and on (so does M), remembered for next time. It asks nothing. `{ corner, size, inset, colour, key }`. Gives `on`, `over(x, y)` and `remove()` | `sound_button` |
+| `askAboutSound(options)` | For a demo: a card before anything is heard, "This demo has sound", "Play with sound" or "Play without sound", and the scene waits for the answer. It puts the sound button up too. `{ title, withSound, withoutSound, remember, wait }` and the button's | `ask_about_sound` |
+| `soundIsOn()` | Is the scene's sound on? `false` once it is switched off, and while the card is asking | `sound_is_on` |
 | `setTempo(bpm)` | Beats a minute. Beat 0 is now | `set_tempo` |
 | `beats(n)` | How many seconds that many beats last | `beats` |
 | `beat()` | Which beat it is now | `beat` |
