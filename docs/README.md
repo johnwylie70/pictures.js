@@ -17,7 +17,7 @@ pictures.js is designed for projects made in [Circuitry Studio](https://www.circ
 - [Colours](colours.md)
 - [Saved values](saved-values.md): keep a best score for next time
 - [Files and databases](files-and-databases.md): write a file and read it back, and keep rows in a SQLite database
-- [Sound and music](sound.md): game sounds, notes and tunes, synths and recorded sounds
+- [Sound and music](sound.md): game sounds, notes and tunes, synths, recorded sounds, MIDI and your voice
 - [Dials, sliders and a keyboard](dials.md): controls on the scene, for a number or for a synth
 - [Bringing a Pyctures scene across](from-python.md)
 - [Use it on your website](website.md)

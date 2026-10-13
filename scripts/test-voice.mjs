@@ -51,6 +51,25 @@ for (const file of ['voice_changer.js', 'sampler.js']) {
   say(uses.sound && uses.dials && !uses.three, 'node', `examples/${file} uses sound and controls`, uses)
 }
 
+// --- with no browser: the docs name every sound, synth and voice the library has, and every example is listed
+{
+  const names = synths.describe()
+  const ticked = (text) => new Set([...text.matchAll(/`"?([A-Za-z0-9]+)"?`/g)].map((m) => m[1]))
+  const page = await readFile(join(ROOT, 'docs', 'sound.md'), 'utf8'), index = await readFile(join(ROOT, 'docs', 'function-index.md'), 'utf8')
+  const count = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'][Object.keys(names.sounds).length]
+  const lacks = (text, list) => list.filter((n) => !ticked(text).has(n))
+  let got = { sounds: lacks(page, Object.keys(names.sounds)), synths: lacks(page, Object.keys(names.synths).filter((n) => n !== 'sample')), voices: lacks(page, Object.keys(names.voices)), count: new RegExp(`There are ${count}:`).test(page) }
+  say(!got.sounds.length && !got.synths.length && !got.voices.length && got.count, 'node', `docs/sound.md names every one of the ${count} game sounds, the ready-made synths and the voices that sound/synths.js has`, got)
+  got = { sounds: lacks(index, Object.keys(names.sounds)), voices: Object.keys(names.voices).filter((n) => !index.includes(n)) }
+  say(!got.sounds.length && !got.voices.length, 'node', 'docs/function-index.md names every game sound and voice', got)
+  const files = (await readdir(join(ROOT, 'examples'))).filter((f) => f.endsWith('.js'))
+  const listed = { 'examples/index.html': await readFile(join(ROOT, 'examples', 'index.html'), 'utf8'), 'scripts/build-gallery.mjs': await readFile(join(ROOT, 'scripts', 'build-gallery.mjs'), 'utf8'), 'README.md': await readFile(join(ROOT, 'README.md'), 'utf8') }
+  for (const [where, text] of Object.entries(listed)) {
+    const missing = files.filter((f) => !text.includes(f))
+    say(!missing.length, 'node', `${where} lists every example`, missing)
+  }
+}
+
 // --- with no browser: the same commands, rendered with sound given in a microphone's place
 {
   const rate = 48000

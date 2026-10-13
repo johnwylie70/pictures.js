@@ -1,6 +1,6 @@
 # Sound and music
 
-A scene can make sound: a game sound in one line, notes and tunes, synths you shape yourself, and recorded sounds from a file. The names are ready in every scene, with nothing to import and nothing to load.
+A scene can make sound: a game sound in one line, notes and tunes, synths you shape yourself, recorded sounds from a file, and your own voice from the microphone. The names are ready in every scene, with nothing to import and nothing to load.
 
 ```js
 function onMouseDown() {
@@ -20,7 +20,7 @@ Browsers keep a page silent until the person using it has clicked, tapped or pre
 playSound("coin")
 ```
 
-There are thirteen: `coin`, `jump`, `laser`, `explosion`, `hit`, `powerup`, `blip`, `click`, `zap`, `bounce`, `pop`, `win` and `lose`. Put the line where the thing happens:
+There are fourteen: `coin`, `jump`, `laser`, `explosion`, `hit`, `shoot`, `powerup`, `blip`, `click`, `zap`, `bounce`, `pop`, `win` and `lose`. Put the line where the thing happens:
 
 ```js
 if (star.touches(basket)) {
@@ -172,7 +172,103 @@ function onMouseDown() {
 }
 ```
 
-`song.pause()`, `song.resume()` and `song.stop()` do as they say, `song.volume = 0.5` turns it down, and `playSong("tune.xm", { repeat: false })` plays it once. One song plays at a time, and your notes and game sounds play over it.
+`song.pause()`, `song.resume()` and `song.stop()` do as they say, `song.volume = 0.5` turns it down, `song.seek(2)` jumps to its third part, and `playSong("tune.xm", { repeat: false })` plays it once. `song.position` says where it is, for drawing: `{ state, order, pattern, row, … }`. One song plays at a time, and your notes and game sounds play over it.
+
+## Your voice
+
+The microphone is a synth whose sound comes in instead of being made. Ask for it, give it a voice, and listen:
+
+```js
+const mic = useMicrophone()       // the browser asks whether the page may use the microphone
+mic.voice = "robot"
+mic.listen()                      // now you hear yourself, as a robot. mic.mute() stops it
+```
+
+**Wear headphones when you listen.** Through loudspeakers the microphone hears itself, and the sound goes round and round until it howls. That is why nothing is heard until you say `listen()`. Recording does not need it.
+
+| Voice | What it is |
+|---|---|
+| `robot` | A machine, ringing in a metal pipe |
+| `chipmunk` | Small and squeaky: seven semitones higher |
+| `monster` | Huge and deep: seven semitones lower, with a growl |
+| `cave` | Far inside a cave: long echoes in a very big room |
+| `telephone` | Down an old phone line |
+| `alien` | Not from here: higher, with a slow metallic sweep |
+| `whisper` | Hoarse and breathy, with no pitch at all |
+
+`"none"` takes the voice off, and `voiceNames()` lists them. A voice is only a handful of settings, and you can turn them yourself once it is on. A microphone has every setting a synth has, and a few words of its own:
+
+```js
+mic.pitch = 7                     // semitones up or down, -12 to 12, without getting faster or slower
+mic.echo = 0.4                    // and reverb, chorus, distortion, crush, cutoff, pan and volume, as on a synth
+mic.ring = 1                      // multiply the voice by a wave: mic.ringSpeed = 50 is how fast (the robot)
+mic.comb = 0.5                    // ring like a pipe at one note: mic.combTone = 110. mic.flanger sweeps it
+mic.gain = 2                      // turn a quiet microphone up
+mic.gate = -40                    // quieter than this (in dB) counts as silence. It starts at -50; "off" for none
+```
+
+Choosing another voice first puts back what the last one changed, so pick the voice and then turn the dials.
+
+The microphone is a synth to the [controls](dials.md) too: `dial("pitch", mic, "pitch")`, `toggle("listen", mic, "listening")`, `scope(mic)` and `meter(mic)`. The scope and the meter show your voice even while it is muted. [`examples/voice_changer.js`](../examples/voice_changer.js) is all of this on one picture.
+
+### Recording
+
+```js
+let take = null
+
+function onMouseDown() {
+  take = recordSound(3)             // three seconds of the microphone, starting now
+  take.onDone(() => take.play())    // when it is over, play it back
+}
+```
+
+`recordSound` gives you the recording at once and does not wait: your scene carries on drawing, and the take fills up behind it. A take is a sample, like one from `loadSample`, so everything a sample does it does, even while it is still recording:
+
+```js
+take.play()                       // as you said it
+take.play("E4")                   // higher and faster: middle C is its own pitch
+take.reverse = true               // backwards
+take.loop = true                  // round and round while its note is held
+take.voice = "monster"            // any voice, afterwards
+take.done                         // false until it is over; take.seconds is then how long it is
+```
+
+- What is recorded is **your plain voice**, whether or not you are listening. The take is then given the voice the microphone has, so it plays back the way the microphone sounds, and you can change your mind afterwards: `take.voice = "none"` is you, and `take.soundLike(mic)` is the microphone as it is set now.
+- `startRecording()` records until `stopRecording()`. It stops by itself after 30 seconds; `startRecording({ max: 60 })` gives it longer, up to 120.
+- One recording is made at a time: starting another ends the one before, which keeps what it had.
+- `mic.record(3)` is the same as `recordSound(3)`, and `await take.whenDone()` waits for it where your code can wait.
+
+[`examples/sampler.js`](../examples/sampler.js) records a word and plays it from a keyboard on the scene.
+
+### Recording what you play, and saving
+
+```js
+const tune = recordOutput(10)     // everything that is played for the next ten seconds, in stereo
+playNotes("C4 E4 G4 C5", 0.25)
+saveSound(tune, "my-tune.wav")    // saved as soon as it is over
+```
+
+`lead.record(4)` records one synth alone. `saveSound` makes a WAV file from a take or a sample. In a browser the file is downloaded. In an app that keeps your scene's files, such as [Circuitry Studio](https://www.circuitry.dev), it is written among your scene's other files. `await saveSound(take, { download: false })` gives the file's bytes and saves nothing.
+
+### With no microphone
+
+A computer with no microphone, a person who says no, a page that is not allowed to ask: none of these stops your scene. Every function still works, the console says once why there is no microphone and what to do about it, and a recording is simply empty and done straight away (`take.seconds` is 0). `mic.state` is `"on"`, or says why not: `"refused"`, `"none"`, `"busy"` or `"unavailable"`, and `mic.whenReady().then((there) => { … })` is told `true` or `false`. So write a scene that is still worth running without one, as the two examples are.
+
+The browser asks about the microphone when `useMicrophone()` is called, which may be before the first click. Sound itself still waits for that click, so nothing is heard or recorded until then; a recording you asked for before it starts at the click. A page has to be served over `https` or from `localhost` (as `pictures run` does) to be given a microphone, and a page inside a frame needs `allow="microphone"` on the frame.
+
+### The voice effects on a synth
+
+The pitch shifter, the ring modulator and the comb are not only for voices. Every synth has them, under names that do not clash with its own `pitch` and `ring`:
+
+```js
+lead.pitchShift = 12              // an octave up, with the same length
+lead.ringMod = 0.6                // bell-like and strange: lead.ringSpeed = 300
+lead.comb = 0.5                   // a metal pipe: lead.combTone, lead.combFeedback
+lead.flanger = 0.6                // the comb, sweeping: lead.flangerRate
+lead.voice = "robot"              // or a whole voice at once
+```
+
+Eight synths can use the pitch shifter or the comb at once.
 
 ## When things start
 
@@ -268,7 +364,7 @@ Sound stops by itself when the scene stops or is run again. Several scenes on on
 
 ## The Python spellings
 
-Every name has its Python spelling too, so a scene comes across from [Pyctures](from-python.md) with little more than its syntax changed: `play_sound`, `play_note`, `play_notes`, `make_synth`, `load_sample`, `stop_sound`, `set_volume`, `set_tempo`, `sound_time`, `on_midi_note`, `on_midi_control`, `send_midi_note`, `midi_devices`, `lead.play_from_midi()`. Settings too: `lead.vibrato_rate = 6`.
+Every name has its Python spelling too, so a scene comes across from [Pyctures](from-python.md) with little more than its syntax changed: `play_sound`, `play_note`, `play_notes`, `make_synth`, `load_sample`, `stop_sound`, `set_volume`, `set_tempo`, `sound_time`, `on_midi_note`, `on_midi_control`, `send_midi_note`, `midi_devices`, `lead.play_from_midi()`, `use_microphone`, `record_sound`, `start_recording`, `record_output`, `save_sound`, `take.on_done(…)`, `take.sound_like(mic)`. Settings too: `lead.vibrato_rate = 6`.
 
 ## Mistakes
 
@@ -278,17 +374,18 @@ A mistake stops the scene and is said in plain words, with its line and what was
 Line 3: playSound("lazer"): there is no sound called "lazer". Did you mean "laser"? The sounds are: coin, jump, laser, …
 Line 7: A synth has no setting called "cutof". Did you mean "cutoff"?
 Line 2: "H4" is not a note. Write a note as a name like "C4", "F#3" or "Bb5", or as a number, where 60 is middle C
+Line 5: "robt" is not a voice. Did you mean "robot"? The voices are: robot, chipmunk, monster, cave, telephone, alien, whisper, and "none"
 ```
 
-Things that are not your mistake do not stop the scene. They are said once in the browser's console and the rest carries on: sound that is waiting for a click, a sample whose file is missing, or a browser with no MIDI.
+Things that are not your mistake do not stop the scene. They are said once in the browser's console and the rest carries on: sound that is waiting for a click, a sample whose file is missing, a browser with no MIDI, or no microphone.
 
 ## How it is loaded
 
-The sound is made by [synths.js](https://github.com/johnwylie70/synths.js), which sits in the `sound` folder beside `pictures.js`. It is loaded only by a scene that uses one of the sound names: a scene with no sound loads nothing for it. Its engine runs on the browser's audio thread, away from your drawing, so sound does not slow a frame and a slow frame does not make the sound stutter. `pictures build` copies the folder for a scene that uses it. MIDI is one more file in that folder, `synths-midi.js`, fetched the first time a scene uses a MIDI name or has a function such as `onMidiNote`; a scene with sound and no MIDI never asks for it, and the browser is asked for its MIDI devices only then.
+The sound is made by [synths.js](https://github.com/johnwylie70/synths.js), which sits in the `sound` folder beside `pictures.js`. It is loaded only by a scene that uses one of the sound names: a scene with no sound loads nothing for it. Its engine runs on the browser's audio thread, away from your drawing, so sound does not slow a frame and a slow frame does not make the sound stutter. `pictures build` copies the folder for a scene that uses it. MIDI is one more file in that folder, `synths-midi.js`, fetched the first time a scene uses a MIDI name or has a function such as `onMidiNote`; a scene with sound and no MIDI never asks for it, and the browser is asked for its MIDI devices only then. The microphone needs no file of its own, and the browser is asked for it only when a scene calls `useMicrophone` or records it.
 
 A page that is not served over `https` (or from `localhost`, as `pictures run` does) has no audio thread to use. The same engine then runs on the page's own thread, which sounds the same and may crackle when the page is busy; the console says so once.
 
-An app that runs scenes can take the sound commands and play them itself, and can supply MIDI where the browser has none: see [Use it on your website](website.md#sound).
+An app that runs scenes can take the sound commands and play them itself, can supply MIDI or a microphone where the browser has none, and can keep the files `saveSound` makes: see [Use it on your website](website.md#sound).
 
 ## Related
 

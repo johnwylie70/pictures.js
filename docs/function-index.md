@@ -587,7 +587,7 @@ Explained in [Sound and music](sound.md).
 
 | Name | What it does | Python spelling |
 |---|---|---|
-| `playSound(name, volume)` | A ready-made game sound: `coin`, `jump`, `laser`, `explosion`, `hit`, `powerup`, `blip`, `click`, `zap`, `bounce`, `pop`, `win`, `lose` | `play_sound` |
+| `playSound(name, volume)` | A ready-made game sound: `coin`, `jump`, `laser`, `explosion`, `hit`, `shoot`, `powerup`, `blip`, `click`, `zap`, `bounce`, `pop`, `win`, `lose` | `play_sound` |
 | `playNote(note, length, volume)` | A note (`"C4"`, or 60), a list of notes, or a chord by name (`"Cm7"`) | `play_note` |
 | `playNotes(notes, step, options)` | A tune, a step at a time: `"C4 E4 G4 - C5:2"`. `{ repeat: true }` goes round. Gives a tune with `stop()` | `play_notes` |
 | `note(name, length)`, `chord(name, length)`, `rest(length)` | The next note, chord or gap of a tune written a line at a time. A length is `"quarter"`, `"half"`…, or beats | `note`, `chord`, `rest` |
@@ -608,7 +608,23 @@ Explained in [Sound and music](sound.md).
 | `soundTime()` | The sound clock, in seconds: what `{ at }` is read against | `sound_time` |
 | `noteNumber(note)` | A note's number: `noteNumber("A4")` is 69 | `note_number` |
 | `soundNames()`, `synthNames()`, `settingNames()` | Lists of the game sounds, the ready-made synths and a synth's settings | `sound_names`, `synth_names`, `setting_names` |
-| `playSong(path, options)`, `stopSong()` | A song from a `.mod` or `.xm` file beside the scene. Gives a song with `pause()`, `resume()`, `stop()` and `volume` | `play_song`, `stop_song` |
+| `playSong(path, options)`, `stopSong()` | A song from a `.mod` or `.xm` file beside the scene. Gives a song with `pause()`, `resume()`, `seek(part)`, `stop()`, `volume` and `position` | `play_song`, `stop_song` |
+| `lead.voice`, `lead.pitchShift`, `lead.ringMod`, `lead.comb`, `lead.flanger` | On any synth: a voice by name (`"robot"`), the pitch shifter in semitones, the ring modulator, the comb and its sweep | `voice`, `pitch_shift`, `ring_mod`, `comb`, `flanger` |
+| `voiceNames()` | A list of the voices: robot, chipmunk, monster, cave, telephone, alien, whisper | `voice_names` |
+
+### Your voice
+
+The browser is asked for the microphone only by a scene that uses it. Explained in [Sound and music](sound.md#your-voice).
+
+| Name | What it does | Python spelling |
+|---|---|---|
+| `useMicrophone(options)` | The microphone, as a synth whose sound comes in. `{ voice, listen, raw }`. It has `listen()`, `mute()`, `voice`, `pitch`, `ring`, `comb`, `gain`, `gate`, `record(length)`, `state`, `whenReady()` and every setting of a synth | `use_microphone` |
+| `stopMicrophone()` | Lets the microphone go: the browser's recording light goes out. It happens by itself when the scene stops | `stop_microphone` |
+| `recordSound(length, options)` | Records the microphone into a sample, given back at once: a take, with `done`, `seconds`, `onDone(fn)`, `whenDone()`, `soundLike(mic)`, and `play`, `reverse`, `loop` and `voice` as any sample. `{ effects, from, max }` | `record_sound` |
+| `startRecording(options)`, `stopRecording()` | A recording with no set length, and its end. It stops by itself after 30 seconds, or `{ max }` up to 120 | `start_recording`, `stop_recording` |
+| `recordOutput(length)` | Records everything that is played, in stereo | `record_output` |
+| `lead.record(length)` | Records one synth alone | `record` |
+| `saveSound(take, name, options)` | A take or a sample as a WAV file: downloaded, or written among the scene's files in an app that keeps them. Gives a promise of its bytes; `{ download: false }` gives the bytes alone | `save_sound` |
 
 ### MIDI
 

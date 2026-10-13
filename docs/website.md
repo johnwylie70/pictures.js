@@ -103,6 +103,8 @@ scene.stop()
 | `storage` | Where the files the scene writes are kept, for an app that has real files to give it. See [Storage](#storage) below. Without it the browser keeps them. |
 | `pictures` | The methods a loaded picture has (`await img.removeBackground()`), for an app that can change pictures. See [Picture methods](#picture-methods) below. Without it a picture has none. |
 | `sound` | Where a scene's sound is made, for an app that plays it somewhere else, or that must hand the page the sound engine. See [Sound](#sound) below. Without it the page plays. |
+| `microphone` | The microphone, for an app whose page cannot ask the browser for one or that has one already: a stream, or frames the app pushes. See [The microphone, and saved sound](#the-microphone-and-saved-sound) below. Without it the browser is asked, when a scene first uses the microphone. `false` says there is none. |
+| `save` | Given each WAV file a scene's `saveSound` makes, as `{ name, bytes, type }`. Without it the file goes to `storage.writeBytes` if there is one, and is downloaded if not. |
 | `midi` | The MIDI devices themselves, for an app whose browser has no Web MIDI (an iPad app). See [MIDI](#midi) below. Without it the browser's own is used, where it has one. `false` switches MIDI off. |
 | `sqlite` | The address of the folder SQLite is loaded from (it holds `sql-wasm.js` and `sql-wasm.wasm`), in place of the `sqlite` folder beside `pictures.js`. |
 | `savedAs` | The name the scene's saved values and files are kept under in the browser. Without it, the scene's address. |
@@ -199,7 +201,30 @@ That is the whole of it: reading the bytes, the keyboard that plays a synth, the
 
 An app that takes the sound commands itself (`sound.send`) finds the MIDI among them, as `{ op: "midi", do: … }`, and its own player carries them out. To hand back what was received, give `sound` an `onMidi(listener, scope)` function beside `send`, as a player has: `sound: { send: (batch) => player.send(batch), onMidi: (listener, scope) => player.onMidi(listener, scope) }`. For a player that is further away, keep the listener and call it with the lists of events as they arrive.
 
-Sound is kept silent by the browser until a click, a tap or a key press in the scene's own page. Inside an `<iframe>` that means inside the frame, unless the frame has `allow="autoplay"`.
+### The microphone, and saved sound
+
+A scene uses the microphone with `useMicrophone()` and `recordSound(3)`, and saves a recording with `saveSound(take, "hello.wav")` ([Sound and music](sound.md#your-voice)). On a web page there is nothing to set up, as long as:
+
+- the page is served over `https` or from `localhost`. Any other page has no microphone to ask for;
+- a page inside an `<iframe>` from another origin has `allow="microphone"` on the frame (with `allow="autoplay"`, that is `allow="microphone; autoplay"`). A sandboxed frame with no origin of its own (`sandbox="allow-scripts"` alone) is refused even so: the app should hold the microphone and hand it over with the option below, or play the sound itself with `sound.send`.
+
+The browser asks the person the first time a scene calls `useMicrophone()`, and never before. Where there is no microphone the scene still runs, a recording is empty, and the console says why once.
+
+```js
+runScene(box, {
+  src: "voice.js",
+  microphone: stream,                                   // a MediaStream the app already has (or a promise of one)
+  save: (file) => keep(file.name, file.bytes),          // { name: "hello.wav", bytes: Uint8Array, type: "audio/wav" }
+})
+```
+
+`microphone` may also be a function, or `{ open(wants), close() }`, called when a scene first wants the microphone and when it is let go. `wants` is `{ sampleRate, raw, constraints, push }`. Give back a `MediaStream`; or give back `true` and call `wants.push(frames, sampleRate)` with a `Float32Array` of one channel whenever there are some, which is how a native app that captures the sound itself (and owns the audio session) hands it over. Give back nothing, or throw, and there is no microphone. `microphone: false` says so without anybody being asked. A scene's microphone is let go when the scene stops. The contract, with what a native app needs, is synths.js's [docs/microphone.md](https://github.com/johnwylie70/synths.js/blob/main/docs/microphone.md).
+
+**Where a saved sound goes.** With `save`, to that function. Without it, an app that gave `storage` with `writeBytes` is handed the file there, under the name the scene gave it, among the scene's other files. With neither, the browser downloads it, which a sandboxed frame may not do.
+
+An app that takes the sound commands itself (`sound.send`) finds `mic`, `record` and `save` among them, and its own player has the microphone and makes the files, so `microphone` and `save` are options of that player (`createPlayer({ microphone, save })`) and not of `runScene`. What the player says back (the microphone is on or is not, a recording is over, a file is saved) has to reach the scene, or a recording never says it is done: give `sound` an `onSoundEvents(listener, scope)` function beside `send`, as a player has: `sound: { send: (batch) => player.send(batch), onSoundEvents: (listener, scope) => player.onSoundEvents(listener, scope) }`. For a player that is further away, keep the listener and call it with the lists of events as they arrive.
+
+Sound is kept silent by the browser until a click, a tap or a key press in the scene's own page. Inside an `<iframe>` that means inside the frame, unless the frame has `allow="autoplay"`. The microphone is asked for without waiting for that, but nothing is heard or recorded from it until then.
 
 ### Picture methods
 
@@ -253,7 +278,7 @@ Then open `http://localhost:8000/examples/website/`. Any other static web server
 
 ## Things to know
 
-- **Nothing big is loaded.** A 2D scene needs `pictures.js` alone, which is about 15 KB. A 3D scene also loads three.js from the `three` folder, about 750 KB, once for the whole page. A scene that opens a database loads SQLite from the `sqlite` folder, about 700 KB, in the same way. A scene that makes sound loads the `sound` folder, about 450 KB, and one with dials or a keyboard the `dials` folder, about 60 KB. A scene that uses none of these loads none of them.
+- **Nothing big is loaded.** A 2D scene needs `pictures.js` alone, which is about 15 KB. A 3D scene also loads three.js from the `three` folder, about 750 KB, once for the whole page. A scene that opens a database loads SQLite from the `sqlite` folder, about 700 KB, in the same way. A scene that makes sound loads the sound library and its engine from the `sound` folder, about 550 KB (and MIDI's file, about 45 KB, only if it uses MIDI), and one with dials or a keyboard the `dials` folder, about 60 KB. A scene that uses none of these loads none of them.
 - **A loop that never waits** (`while (true)` without `await frame()`) freezes the whole page, not only its scene, because scenes run on the page's own thread. Use `draw()` and `update()`, or wait in every loop. A page that calls `runScene` itself can pass `stopStuckLoops: true` to have such a loop stopped.
 - **A page with scenes must be served** over `http://` or `https://`. Opening it straight from disk (`file://`) does not work, because the browser will not load the scene's `.js` file that way.
 - **Paths a scene loads are relative to the scene's file**, not the page: a scene at `scenes/game.js` that calls `loadImage("sprites/ship.png")` reads `scenes/sprites/ship.png`. The same goes for `loadText` and `loadJSON`. The one exception is `new THREE.TextureLoader().load(...)`, which is three.js's own loader and takes a path from the page.
