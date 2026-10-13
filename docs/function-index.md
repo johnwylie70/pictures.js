@@ -668,13 +668,21 @@ Explained in [Dials, sliders and a keyboard](dials.md).
 | `slider(…)` | The same, as a slider |
 | `button(label, onPress)` | A button: `fire.pressed`, `fire.held` |
 | `toggle(label, on)` | A switch: `mute.on` |
+| `rotary(label, choices, start)` | A knob that clicks between a few choices: `mode.value` |
 | `select(label, choices, start)` | One of a list: `wave.value` |
 | `keyboard(target, options)` | A piano keyboard that plays a synth |
 | `scope(source)` | A live line: the wave a synth is making, or any list of numbers |
 | `meter(source)` | A level as a bar of lights |
-| `label(text)` | Words in the row |
-| `row()` | Starts a new row |
-| `layout(options)` | Where the rows go, and how big |
+| `label(text)` | Words; made just before some controls, their heading |
+| `group(title, fn)` | Controls kept together on one titled plate |
+| `row()` | Starts a new line; `row(fn)` keeps what it makes in a line |
+| `column(fn)` | Controls one under another |
+| `grid(columns, fn)` | Controls in columns that line up |
+| `spacer()` | The room left over, so what follows is pushed to the far end |
+| `wrap()` | Where a line may be split, if it must be |
+| `page(name)` | A page of controls with a tab |
+| `layout(options)` | Where the plates go, how big, whether they wrap, and a panel of a set size |
+| `room()` | The rectangle no control is on |
 | `theme(colours)` | The colours |
 | `over(x, y)` | Is a control at this point? |
 
