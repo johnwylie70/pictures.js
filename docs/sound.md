@@ -159,6 +159,8 @@ function onMouseDown() {
 
 A sample is a synth, so `meow.play("E4")` plays it higher (`"C4"` is its own pitch), and it has the same settings: `meow.reverb = 0.3`. There is no `await`: play it straight away, and it sounds as soon as the file has arrived.
 
+A sample can also be the wave of any synth, under its filter and its envelope: `lead.sample = loadSample("piano.wav")` turns its wave to the recording (`lead.wave = "saw"` goes back), and `makeSynth({ sample: "piano.wav", note: "C4", cutoff: 1800 })` does it in one line, where `note` is the note the recording is at.
+
 ## Songs
 
 A song is a whole piece of music in one file beside the scene: a tracker's `.mod` or `.xm` file.
@@ -182,6 +184,8 @@ song.solo(0)              // hear only the first; song.solo("all", false) to hea
 song.loopPattern()        // stay on the pattern that is playing, round and round; song.loopPattern(false) carries on
 song.replace(edited)      // an edited song in its place, as it plays: its bytes, its JSON as text, or the song as an object
 ```
+
+`song.channel(3)` is one channel to draw: `song.channel(3).level()`, `.samples()` and `.notes()`, as a synth has them.
 
 ## Your voice
 
@@ -360,6 +364,8 @@ Everything that is sent takes `{ after, at, beat }` like a sound ([When things s
 ### Which device
 
 `midiDevices()` gives `{ inputs, outputs, available }` at any time; the lists are empty until the browser has answered, which is why `onMidiDevices` is there. `useMidiInput("Keystation 49")` listens to that one alone (otherwise: all of them), and `useMidiOutput("Minilogue")` sends to that one (otherwise: the first). `receiveMidi({ type: "noteOn", note: 60, velocity: 0.8, channel: 1 })` hands your scene a message just as a keyboard would, for trying a scene with nothing plugged in. `stopMidi()` stops everything MIDI is doing; it stops by itself with the scene.
+
+To choose on the screen instead, `midiInput()` and `midiOutput()` are things a control is tied to, with a `"device"` and a `"channel"` whose choices follow what is plugged in: `select("device", midiInput(), "device")`. `lead.midiInput()` is the same for one synth alone.
 
 ## Volume and stopping
 

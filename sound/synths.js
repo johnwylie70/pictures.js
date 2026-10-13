@@ -25,6 +25,7 @@
  *   setTempo(120), beats(2)                beats(2) is how many seconds two beats last
  *   lead.playFromMidi()                    a MIDI keyboard plays a synth; onMidiNote, onMidiControl, sendMidiNote("C4"),
  *   lead.learn("cutoff")                   lead.sendToMidi(), midiDevices(): MIDI, which is in synths-midi.js
+ *   midiInput(), lead.midiInput()          the MIDI device and channel listened to, for a select on the screen: "device", "channel"
  *   const mic = useMicrophone()            the microphone (the browser asks first); nothing is heard until mic.listen()
  *   mic.voice = "robot"                    a voice changer: robot, chipmunk, monster, cave, telephone, alien, whisper, "none"
  *   mic.pitch = 7, mic.echo = 0.4          and the settings a synth has; a synth has them too: lead.pitchShift, ringMod, comb
@@ -182,8 +183,10 @@ const PARAMS = [
   [203,"delay.feedback","f",0,0.95,0.4,""],
   [204,"delay.tone","f",200,20000,6000,"hz"],
   [205,"delay.pingpong","b",0,1,0,""],
-  [208,"reverb.size","f",0,1,0.6,""],
+  [208,"reverb.size","f",0,1,0.5,""],
   [209,"reverb.damping","f",0,1,0.4,""],
+  [210,"reverb.type","c",0,4,0,"",["room","hall","plate","cathedral","spring"]],
+  [211,"reverb.decay","f",0,30,0,"seconds"],
   [212,"chorus.rate","f",0.05,10,0.8,"hz"],
   [213,"chorus.depth","f",0,1,0.5,""],
   [216,"voices","i",1,64,64,"voices"],
@@ -192,8 +195,10 @@ const PARAMS = [
   [219,"input.monitor","b",0,1,1,""],
   [220,"input.gate","f",-100,0,-100,"db"],
   [221,"input.gate_release","f",0.005,2,0.15,"seconds"],
+  [222,"reverb.predelay","f",0,0.2,0,"seconds"],
+  [223,"reverb.low_cut","f",20,1000,120,"hz"],
 ]
-const VOICES = {"robot":{"help":"A machine: the voice multiplied by a 50 Hz wave, ringing in a metal pipe.","values":{"fx.ring":1,"fx.ring_freq":50,"fx.comb":0.45,"fx.comb_freq":110,"fx.comb_feedback":0.8,"fx.bits":10}},"chipmunk":{"help":"Small and squeaky: everything seven semitones higher.","values":{"fx.pitch":7}},"monster":{"help":"Huge and deep: seven semitones lower, with a growl and a little room.","values":{"fx.pitch":-7,"fx.drive":0.25,"send.reverb":0.25,"reverb.size":0.7,"reverb.damping":0.6}},"cave":{"help":"Far inside a cave: long echoes and a very big room.","values":{"send.delay":0.5,"send.reverb":0.7,"delay.time":0.38,"delay.feedback":0.55,"delay.tone":2500,"reverb.size":0.92,"reverb.damping":0.3}},"telephone":{"help":"Down an old phone line: only the middle of the voice, coarse and a little crushed.","values":{"filter.type":3,"filter.slope":1,"filter.cutoff":1200,"filter.resonance":0.2,"fx.drive":0.2,"fx.bits":8,"fx.downsample":6}},"alien":{"help":"Not from here: higher, multiplied by a 180 Hz wave, with a slow metallic sweep.","values":{"fx.pitch":4,"fx.ring":0.8,"fx.ring_freq":180,"fx.comb":0.4,"fx.comb_freq":600,"fx.comb_feedback":0.75,"fx.comb_rate":0.4,"fx.comb_depth":0.5,"send.chorus":0.4}},"whisper":{"help":"Hoarse and breathy: the voice's pitch blurred into noise, with its low end taken off.","values":{"filter.type":2,"filter.cutoff":500,"filter.resonance":0,"fx.ring":1,"fx.ring_wave":1,"fx.ring_freq":350}}}
+const VOICES = {"robot":{"help":"A machine: the voice multiplied by a 50 Hz wave, ringing in a metal pipe.","values":{"fx.ring":1,"fx.ring_freq":50,"fx.comb":0.45,"fx.comb_freq":110,"fx.comb_feedback":0.8,"fx.bits":10}},"chipmunk":{"help":"Small and squeaky: everything seven semitones higher.","values":{"fx.pitch":7}},"monster":{"help":"Huge and deep: seven semitones lower, with a growl and a little room.","values":{"fx.pitch":-7,"fx.drive":0.25,"send.reverb":0.3,"reverb.size":0.7,"reverb.damping":0.6}},"cave":{"help":"Far inside a cave: long echoes and an enormous, dark space.","values":{"send.delay":0.5,"send.reverb":0.6,"delay.time":0.38,"delay.feedback":0.55,"delay.tone":2500,"reverb.type":3,"reverb.size":0.4,"reverb.damping":0.55}},"telephone":{"help":"Down an old phone line: only the middle of the voice, coarse and a little crushed.","values":{"filter.type":3,"filter.slope":1,"filter.cutoff":1200,"filter.resonance":0.2,"fx.drive":0.2,"fx.bits":8,"fx.downsample":6}},"alien":{"help":"Not from here: higher, multiplied by a 180 Hz wave, with a slow metallic sweep.","values":{"fx.pitch":4,"fx.ring":0.8,"fx.ring_freq":180,"fx.comb":0.4,"fx.comb_freq":600,"fx.comb_feedback":0.75,"fx.comb_rate":0.4,"fx.comb_depth":0.5,"send.chorus":0.4}},"whisper":{"help":"Hoarse and breathy: the voice's pitch blurred into noise, with its low end taken off.","values":{"filter.type":2,"filter.cutoff":500,"filter.resonance":0,"fx.ring":1,"fx.ring_wave":1,"fx.ring_freq":350}}}
 /* PARAMS:END */
 
 /**
@@ -212,6 +217,8 @@ const ALIASES = {
   pitchSweep: 'mod_env.pitch', pitchSweepAttack: 'mod_env.attack', pitchSweepDecay: 'mod_env.decay',
   vibrato: 'lfo1.pitch', vibratoRate: 'lfo1.rate', vibratoDelay: 'lfo1.delay', tremolo: 'lfo1.amp',
   wobble: 'lfo2.cutoff', wobbleRate: 'lfo2.rate', autopan: 'lfo2.pan',
+  // Pulse-width modulation is on the slow LFO, which runs free and is not the vibrato's: so pwmRate is wobbleRate by another name.
+  pwm: 'lfo2.pulse_width', pwmRate: 'lfo2.rate',
   distortion: 'fx.drive', drive: 'fx.drive', crush: 'fx.bits', bits: 'fx.bits', downsample: 'fx.downsample',
   // The voice effects, which every synth has: a pitch shifter, a ring modulator and a comb (which sweeps as a flanger).
   pitchShift: 'fx.pitch', ringMod: 'fx.ring', ringSpeed: 'fx.ring_freq', ringWave: 'fx.ring_wave',
@@ -220,7 +227,8 @@ const ALIASES = {
   echo: 'send.delay', delay: 'send.delay', reverb: 'send.reverb', chorus: 'send.chorus',
   masterVolume: 'master.volume', limiter: 'master.limiter',
   echoTime: 'delay.time', echoFeedback: 'delay.feedback', echoTone: 'delay.tone', echoBounce: 'delay.pingpong',
-  reverbSize: 'reverb.size', reverbDamping: 'reverb.damping', chorusRate: 'chorus.rate', chorusDepth: 'chorus.depth',
+  reverbSize: 'reverb.size', reverbDamping: 'reverb.damping', reverbType: 'reverb.type', reverbDecay: 'reverb.decay', reverbPredelay: 'reverb.predelay', reverbLowCut: 'reverb.low_cut',
+  chorusRate: 'chorus.rate', chorusDepth: 'chorus.depth',
   micGain: 'input.gain', micGate: 'input.gate', micGateRelease: 'input.gate_release',
 }
 /**
@@ -354,6 +362,13 @@ function describeSetting(entry, now) {
   const value = (now === undefined ? entry.def : now) / entry.scale
   return { name: entry.name, kind: KINDS[entry.kind], min: entry.min / entry.scale, max: entry.max / entry.scale, default: entry.kind === 'c' ? entry.choices[value] : entry.kind === 'b' ? value === 1 : value,
     unit: entry.scale === 12 ? 'octaves' : entry.unit, ...(entry.choices ? { choices: [...entry.choices] } : {}) }
+}
+/** Which setting holds the sample of the oscillator whose wave this is, or null for a setting that is not an oscillator's wave. */
+const sampleOfWave = (entry) => (entry.name === 'osc1.wave' || entry.name === 'osc2.wave' ? setting(entry.name.replace('wave', 'sample')) : null)
+/** A wave described for a synth that has no sample to play: "sample" is not one of its choices. */
+function withoutSample(d) {
+  const choices = d.choices.filter((c) => c !== 'sample')
+  return { ...d, choices, max: choices.length - 1 }
 }
 /** A setting's value as a person reads it: a choice by name, a switch as true or false, a number in the friendly name's units. */
 function readSetting(entry, now) {
@@ -1733,18 +1748,28 @@ function makeConductor(post, load, bytesOf, say = () => {}) {
     // A song put in the place of another keeps the synths its instruments already have.
     if (!m.replaced) dropSongSynths()
     enter(song.scope.name)
+    // Which synth each instrument plays, by the instrument's number: read as the id "song:ins:<number>".
+    song.instruments = new Map()
+    const taken = new Set()
     for (const [instrument, nameBytes, synthBytes] of m.patches) {
       const name = text(nameBytes)
+      let own = false
       let bound = song.patches[name]
       // With nothing said by the caller, the song's own word for it: { preset, set }.
       if (bound === undefined && synthBytes) {
+        own = true
         try { const own = JSON.parse(text(synthBytes)); if (own && typeof own === 'object') bound = { ...(typeof own.preset === 'string' ? { preset: own.preset } : {}), ...(own.set && typeof own.set === 'object' ? own.set : {}), ...(own.macro !== undefined ? { macro: own.macro } : {}) } } catch (e) { /* not ours to read */ }
       }
       if (bound === undefined && PRESETS[name]) bound = name
       if (bound === undefined) tell(`the song ${shown(song.name)} has an instrument that is a synth called ${shown(name)}, and was not told what that is, so it plays as "keys". Say what it is: playSong(file, { patches: { ${shown(name)}: "bass" } }).`)
       const settings = bound && typeof bound === 'object' ? bound : {}
       const preset = PRESETS[typeof bound === 'string' ? bound : settings.preset] || (settings.preset === undefined && typeof bound === 'object' ? null : PRESETS.keys)
-      const sid = prefix + 'song:' + name
+      // Two instruments may give the same name to synths of their own that differ: the first has the name, and
+      // each one after it a synth to itself, "song:<name>#<its number>".
+      let sid = prefix + 'song:' + name
+      if (own && taken.has(sid)) sid += '#' + instrument
+      taken.add(sid)
+      song.instruments.set(instrument, sid)
       const patch = patchOf(settings, '', false, patchOf(preset, '', false, plain()), slotFor)
       for (const pid of [...patch.keys()]) if (pid >= 200) patch.delete(pid)
       // A song's channels play at half volume, to leave room for one another; its synths do the same.
@@ -1766,17 +1791,22 @@ function makeConductor(post, load, bytesOf, say = () => {}) {
       event(now, SONG, 0, 6, instrument, rec.part)
     }
     song.info = m.info
-    if (m.replaced) return
-    song.ready = true
     // The song's channels are the engine's parts from 32. Raw: a sample played fast is left harsh, as old trackers
     // left it; not raw: it is smoothed. With nothing said the engine chooses (raw for a .mod or .xm as it is).
+    // It is said again for a song put in another's place, in case reading it set those parts afresh.
     if (song.raw != null) for (let ch = 0; ch < Math.min(32, m.info[0]); ch++) event(now, PARAM, parts.length + ch, id('sample.antialias'), song.raw ? 0 : 1, 0)
+    if (m.replaced) return
+    song.ready = true
     if (song.repeat === false) event(now, SONG, 0, 4, 0, 0)
     if (song.vol != null) steer({ do: 'volume', vol: song.vol }, now)
     event(Math.max(now, song.at ?? now), SONG, 0, 1, 0, 0)
     for (const [c, at] of song.waiting) { if (typeof c === 'function') c(); else steer(c, Math.max(now, at ?? now)) }
     song.waiting = []
   }
+
+  // A synth by its id. The synth a song's instrument plays is also "song:ins:<the instrument's number>".
+  const songSynth = (sid) => { const m = song && song.instruments && typeof sid === 'string' && /^song:ins:(\d+)$/.exec(sid); return m ? song.instruments.get(+m[1]) : undefined }
+  const found = (sid, scopeName) => synths.get(songSynth(sid) ?? (scopeName ? scopeName + '\u0001' : '') + sid)
 
   function flush() {
     while (ops.length) {
@@ -1793,6 +1823,9 @@ function makeConductor(post, load, bytesOf, say = () => {}) {
       const how = command && does[command.op]
       if (!how) return
       enter(scopeName)
+      // The synth of a song's instrument, by the instrument's number, is whichever synth that is.
+      const ofSong = songSynth(command.id)
+      if (ofSong !== undefined) { command = { ...command, id: ofSong }; return how(command, at) }
       // Inside a scope every id is the scope's own.
       if (prefix && (command.id != null || command.synth != null)) command = { ...command, ...(command.id != null ? { id: prefix + command.id } : {}), ...(command.synth != null ? { synth: prefix + command.synth } : {}) }
       how(command, at)
@@ -1826,15 +1859,18 @@ function makeConductor(post, load, bytesOf, say = () => {}) {
      */
     partOf(sid, scopeName) {
       if (sid == null) return 0xffff
-      const rec = synths.get((scopeName ? scopeName + '\u0001' : '') + sid)
+      // A channel of the song is one of the engine's parts from 32 up: "song:channel:0" is the first.
+      const channel = typeof sid === 'string' && /^song:channel:(\d+)$/.exec(sid)
+      if (channel) return song && song.info && +channel[1] < Math.min(32, song.info[0]) ? parts.length + +channel[1] : -1
+      const rec = found(sid, scopeName)
       return !rec ? -1 : rec === mic && !rec.listen && rec.part >= 0 ? MIC_TAP : rec.part
     },
     /** Whether a synth is the microphone, whose settings have names of their own. */
-    isMic(sid, scopeName) { const rec = synths.get((scopeName ? scopeName + '\u0001' : '') + sid); return !!rec && rec === mic },
+    isMic(sid, scopeName) { const rec = found(sid, scopeName); return !!rec && rec === mic },
     /** A setting of a synth as the commands so far have left it: [what it is, its value in the engine's units], or null. */
     settingOf(sid, name, scopeName) {
       const entry = setting(name)
-      const rec = synths.get((scopeName ? scopeName + '\u0001' : '') + sid)
+      const rec = found(sid, scopeName)
       return entry && rec ? [entry, entry.part ? rec.patch.get(entry.id) : globals.get(entry.id)] : null
     },
     /** How much everything is turned down or up after the parts are mixed. */
@@ -1920,7 +1956,13 @@ function makeTarget(id, run, conductor, read, scope) {
     id,
     set(name, value) { run({ op: 'set', id, set: Object.fromEntries(Object.entries(typeof name === 'string' ? { [name]: value } : name).map(([k, v]) => [named(k), v])) }); return target },
     get(name) { const now = conductor()?.settingOf(id, named(name), scope); return now ? readSetting(now[0], now[1]) : undefined },
-    describe(name) { const now = conductor()?.settingOf(id, named(name), scope); return now ? describeSetting(now[0], now[1]) : setting(named(name)) ? describeSetting(setting(named(name))) : null },
+    describe(name) {
+      const now = conductor()?.settingOf(id, named(name), scope)
+      if (!now) return setting(named(name)) ? describeSetting(setting(named(name))) : null
+      const d = describeSetting(now[0], now[1])
+      const holds = sampleOfWave(now[0])
+      return holds && conductor().settingOf(id, holds.name, scope)[1] === undefined ? withoutSample(d) : d
+    },
     noteOn(note, velocity = 0.8) {
       const n = noteNumber(note)
       target.noteOff(n)
@@ -1956,13 +1998,15 @@ let midiFile = null
 const loadMidi = (given) => (given ? Promise.resolve(typeof given === 'string' ? hidden(given) : given) : midiFile || (midiFile = hidden(new URL('synths-midi.js', BASE).href)))
 const midiMissing = (e) => tell(`MIDI could not be loaded, so there will be none (${(e && e.message) || e}). It is in the file synths-midi.js, which belongs beside synths.js.`, 'error')
 /** MIDI's functions: createSound's, and every synth's. They are in synths-midi.js; these are the names it is asked for by. */
-const MIDI_FUNCTIONS = ['onMidi', 'onMidiNote', 'onMidiNoteOff', 'onMidiControl', 'onMidiDevices', 'useMidiHooks', 'sendMidi', 'sendMidiNote', 'sendMidiNoteOff', 'sendMidiControl', 'sendMidiBend', 'sendMidiProgram', 'sendMidiClock', 'midiDevices', 'useMidiInput', 'useMidiOutput', 'receiveMidi', 'stopMidi']
-const MIDI_SYNTH_FUNCTIONS = ['playFromMidi', 'sendToMidi', 'mapMidi', 'learn', 'unmapMidi']
+const MIDI_FUNCTIONS = ['onMidi', 'onMidiNote', 'onMidiNoteOff', 'onMidiControl', 'onMidiDevices', 'useMidiHooks', 'sendMidi', 'sendMidiNote', 'sendMidiNoteOff', 'sendMidiControl', 'sendMidiBend', 'sendMidiProgram', 'sendMidiClock', 'midiDevices', 'useMidiInput', 'useMidiOutput', 'midiInput', 'midiOutput', 'receiveMidi', 'stopMidi']
+const MIDI_SYNTH_FUNCTIONS = ['playFromMidi', 'sendToMidi', 'mapMidi', 'learn', 'unmapMidi', 'midiInput', 'midiOutput']
+/** What midiInput() and midiOutput() can be asked for by name, and the words among their choices that are not a device or a channel. */
+const MIDI_CHOICES = { settings: ['device', 'channel'], all: 'all', none: 'no devices', unavailable: 'no MIDI here' }
 /** The kinds of MIDI message, and what a `midi` command may do: for a binding in another language. */
 const MIDI = {
   types: ['noteOff', 'noteOn', 'notePressure', 'control', 'program', 'pressure', 'bend', 'sysex', 'timeCode', 'songPosition', 'songSelect', 'tuneRequest', 'clock', 'start', 'continue', 'stop', 'sensing', 'reset', 'other', 'devices', 'tempo', 'learned', 'set'],
   does: ['devices', 'listen', 'input', 'output', 'send', 'play', 'through', 'map', 'learn', 'unmap', 'clock', 'stop'],
-  functions: MIDI_FUNCTIONS, synthFunctions: MIDI_SYNTH_FUNCTIONS,
+  functions: MIDI_FUNCTIONS, synthFunctions: MIDI_SYNTH_FUNCTIONS, choices: MIDI_CHOICES,
 }
 
 /**
@@ -2461,6 +2505,8 @@ export function createPlayer(options = {}) {
     if (closed) return
     closed = true
     midi.close()
+    // A browser with no Web Audio never made the rest: there is nothing more to let go of.
+    if (!player.context) { player.state = 'closed'; return }
     mic.close()
     if (typeof removeEventListener === 'function') for (const g of GESTURES) removeEventListener(g, unlock, { capture: true })
     try { player.node?.disconnect() } catch (e) { /* already gone */ }
@@ -2861,12 +2907,13 @@ export function createSound(options = {}) {
       midiComing = loadMidi(options.midiModule).then((m) => {
         const made = m.makeMidiApi({
           command, choices, notesOf, shown, amount, length, tell, api,
+          storage: options.midiStorage,
           clock: () => midiNow ?? clock(),
           // When a kept call should happen: counted from when it was asked, not from now.
           when: (o, said) => when(o, said) - (midiNow === null || o.at !== undefined || o.beat !== undefined ? 0 : clock() - midiNow),
           tempo: () => tempo,
           meant: (name) => meant(String(name), namesToShow),
-          remember: (synth, name, value) => patchOf({ [name]: value }, 'MIDI', false, synth._patch, () => 0),
+          remember: (synth, name, value) => { patchOf({ [name]: value }, 'MIDI', false, synth._patch, () => 0); share([name], synth._patch) },
           // What the player's desk says is asked for once there is a transport to ask, which is at the next batch.
           listen(heard) {
             let stop = null
@@ -2894,6 +2941,66 @@ export function createSound(options = {}) {
     return back
   }
   let midiComing = null
+
+  /**
+   * THE SETTINGS EVERY SYNTH SHARES (the echo's time, the reverb's type): there is one echo and one reverb, so there
+   * is one value of each, whoever set it. It is kept here, by engine id, and is what every synth and soundOutput()
+   * read back: lead.reverbType = "hall" and setEffects({ reverbType: "hall" }) are the same thing.
+   */
+  const forAll = new Map()
+  function share(names, patch) {
+    for (const name of names) {
+      const entry = setting(name)
+      if (entry && !entry.part && patch.has(entry.id)) forAll.set(entry.id, patch.get(entry.id))
+    }
+  }
+  /**
+   * midiInput() and midiOutput(): the device and the channel as a TARGET, which a select on the screen is tied to
+   * as a dial is tied to a synth. It is here, and not in synths-midi.js, so that it can be given at once: until
+   * that file has arrived it says there are no devices, and what is set on it waits like every other MIDI call.
+   */
+  const midiPorts = new Map()
+  function midiPort(which, synth) {
+    const key = which + (synth ? synth._id : '')
+    if (midiPorts.has(key)) return midiPorts.get(key)
+    const input = which === 'input'
+    const name = input ? 'midiInput' : 'midiOutput'
+    let real = null
+    const it = () => real || (midi ? (real = midi[name](synth)) : null)
+    const numbers = Array.from({ length: 16 }, (_, i) => String(i + 1))
+    const first = { device: MIDI_CHOICES.none, channel: input ? MIDI_CHOICES.all : '1' }
+    const port = {
+      names: [...MIDI_CHOICES.settings],
+      get: (setting) => (it() ? real.get(setting) : first[setting]),
+      set(setting, value) { midiCall('setMidiChoice', [which, synth, setting, value]); return port },
+      describe(setting) {
+        if (it()) return real.describe(setting)
+        if (!(setting in first)) return undefined
+        return { name: setting, kind: 'text', choices: setting === 'device' ? [first.device] : input ? [first.channel, ...numbers] : numbers, default: first[setting] }
+      },
+      /** midiIn.onChange((name) => { ... }): "device" or "channel" has another value, or other choices (a device was plugged in). It gives back a function that stops it. */
+      onChange(fn) {
+        if (typeof fn !== 'function') throw new Error(`${name}().onChange needs a function to call, as in onChange((name) => { ... }), not ${shown(fn)}`)
+        const heard = (...args) => { if (stopped !== true) fn(...args) }
+        let stopped = midiCall('watchMidiChoice', [which, synth, heard])
+        return () => { if (typeof stopped === 'function') stopped(); stopped = true }
+      },
+      get device() { return port.get('device') },
+      set device(value) { port.set('device', value) },
+      get channel() { return it() ? real.channel : input ? first.channel : 1 },
+      set channel(value) { port.set('channel', value) },
+    }
+    port.on_change = port.onChange
+    if (input) {
+      /** How hard the last note was hit, fading away: from 0 to 1, for a meter that is an activity light. */
+      port.level = () => (it() ? real.level() : 0)
+      /** The keys held down on this input now, as numbers. */
+      port.notes = () => (it() ? real.notes() : [])
+    }
+    midiPorts.set(key, port)
+    midiCall(name, [synth])
+    return port
+  }
 
   /** A note that is sounding: what start() gives back. */
   class Note {
@@ -3095,13 +3202,17 @@ export function createSound(options = {}) {
       if (key(name) === 'voice') return this.voice
       const entry = setting(this._name(name))
       if (!entry) throw new Error(`get: there is no setting called ${shown(name)}.${meant(String(name), namesToShow)}`)
-      return readSetting(entry, this._patch.get(entry.id))
+      return readSetting(entry, entry.part ? this._patch.get(entry.id) : forAll.get(entry.id))
     }
     /** What a setting is: { name, min, max, default, unit, kind, choices }, for a control that takes its range from it. */
     describe(name) {
       if (key(name) === 'voice') return { name: 'voice', kind: 'choice', min: 0, max: Object.keys(VOICES).length, default: 'none', unit: '', choices: ['none', ...Object.keys(VOICES)] }
       const entry = setting(this._name(name))
-      return entry ? describeSetting(entry, this._patch.get(entry.id)) : null
+      if (!entry) return null
+      const d = describeSetting(entry, entry.part ? this._patch.get(entry.id) : forAll.get(entry.id))
+      // "sample" is a wave only for a synth that has been given a sample to play.
+      const holds = sampleOfWave(entry)
+      return holds && !this._patch.has(holds.id) ? withoutSample(d) : d
     }
     /** A setting's name as this synth says it -> the name it has everywhere. (The microphone has words of its own.) */
     _name(name) { return name }
@@ -3112,7 +3223,7 @@ export function createSound(options = {}) {
         if (key(name) === 'voice') this._wear(value, at)
         else out[this._name(name)] = value
       }
-      return out
+      return withSamples(out, this._patch, 'set')
     }
 
     /**
@@ -3127,7 +3238,9 @@ export function createSound(options = {}) {
       const voice = voiceName(name)
       if (voice === null) throw new Error(`${shown(name)} is not a voice.${meant(String(name), Object.keys(VOICES))} The voices are: ${Object.keys(VOICES).join(', ')}, and "none"`)
       if (!this._worn) this._worn = { voice: 'none', under: null }
-      wearVoice(this._worn, this._patch, voice, engineDefault)
+      // A voice may change what every synth shares (the cave's reverb), and takes it back when it is taken off.
+      for (const [pid, value] of forAll) this._patch.set(pid, value)
+      for (const [pid, value] of wearVoice(this._worn, this._patch, voice, engineDefault)) if (pid >= 200) forAll.set(pid, value)
       command({ op: 'set', id: this._id, voice, t: at })
     }
 
@@ -3206,6 +3319,7 @@ export function createSound(options = {}) {
       given = this._given(given, at)
       if (!Object.keys(given).length) return this
       patchOf(given, 'set', true, this._patch, () => 0)
+      share(Object.keys(given).map((name) => this._name(name)), this._patch)
       const c = { op: 'set', id: this._id, set: sendable(given), t: at }
       // `slide` is another word for it (the Python library's first spelling).
       const glide = o.glide !== undefined ? o.glide : o.slide
@@ -3220,6 +3334,11 @@ export function createSound(options = {}) {
     mapMidi(...args) { return midiCall('mapMidi', [this, ...args], this) }
     learn(...args) { return midiCall('learn', [this, ...args], this) }
     unmapMidi(...args) { return midiCall('unmapMidi', [this, ...args], this) }
+    /** lead.midiInput(): the device and the channel this synth plays from, for a select on the screen (see midiInput). lead.midiOutput(): where its notes go. */
+    midiInput() { return midiPort('input', this) }
+    midiOutput() { return midiPort('output', this) }
+    midi_input() { return this.midiInput() }
+    midi_output() { return this.midiOutput() }
     play_from_midi(...args) { return this.playFromMidi(...args) }
     send_to_midi(...args) { return this.sendToMidi(...args) }
     map_midi(...args) { return this.mapMidi(...args) }
@@ -3252,6 +3371,47 @@ export function createSound(options = {}) {
     },
   })
 
+  // A sound file as a sample: the command that loads it, and the id it goes by.
+  function sampleFile(path, o, said) {
+    const sid = prefix + 'w' + ++ids
+    const c = { op: 'sample', id: sid, name: path }
+    if (o.note !== undefined) c.note = noteNumber(o.note)
+    if (o.loop) c.loop = Array.isArray(o.loop) ? o.loop : true
+    if (options.read) {
+      Promise.resolve().then(() => options.read(path)).then((bytes) => { if (!bytes) throw new Error('it is not there'); command({ ...c, bytes }) })
+        .catch((e) => tell(`${said}: the file could not be read (${(e && e.message) || e}), so it will be silent.`))
+    } else command({ ...c, url: options.resolve ? options.resolve(path) : typeof document !== 'undefined' ? new URL(path, document.baseURI).href : path })
+    return sid
+  }
+  /**
+   * SAMPLES AMONG A SYNTH'S SETTINGS. `sample` is a sample from loadSample, a recording, or the name of a sound file
+   * (which is loaded); giving one turns that oscillator's wave to "sample" unless a wave is said too, so
+   * lead.sample = loadSample("piano.wav") is all it takes to put a recording under a synth's filter and envelope.
+   * The wave "sample" with no sample to play is not set: it is said once, and the wave stays as it was.
+   */
+  function withSamples(given, patch, said, file = {}) {
+    const out = { ...given }
+    const names = (which) => Object.keys(out).filter((n) => setting(n)?.name === which)
+    for (const [name, value] of Object.entries(given)) {
+      const entry = setting(name)
+      if (!entry || !entry.name.endsWith('.sample')) continue
+      if (typeof value === 'string' && value.trim()) out[name] = { _sample: sampleFile(value, file, said) }
+      else if (!(value && typeof value === 'object' && value._sample)) throw new Error(`${said}: sample needs a sample from loadSample, a recording, or the name of a sound file, as in lead.sample = loadSample("piano.wav"), not ${shown(value)}`)
+      const wave = entry.name.replace('sample', 'wave')
+      if (!names(wave).length) out[wave] = 'sample'
+    }
+    for (const which of ['osc1', 'osc2']) {
+      for (const name of names(which + '.wave')) {
+        if (!(out[name] === 4 || (typeof out[name] === 'string' && out[name].toLowerCase().trim() === 'sample'))) continue
+        if (patch.has(setting(which + '.sample').id) || names(which + '.sample').length) continue
+        const now = readSetting(setting(which + '.wave'), patch.get(setting(which + '.wave').id))
+        tell(`${name} = "sample" needs a sample to play, and this synth has none, so its wave stays ${shown(now)}. Give it one first: lead.sample = loadSample("piano.wav"), or makeSynth({ sample: "piano.wav" }).`)
+        delete out[name]
+      }
+    }
+    return out
+  }
+
   function makeSynth(...args) {
     const o = {}
     let preset = null
@@ -3268,14 +3428,19 @@ export function createSound(options = {}) {
     const names = Object.keys(PRESETS).filter((n) => n !== 'sample')
     if (preset !== null && !PRESETS[preset]) throw new Error(`makeSynth(${shown(preset)}): there is no synth called ${shown(preset)}.${meant(preset, names)} The synths are: ${names.join(', ')}`)
     const said = `makeSynth(${preset ? shown(preset) : ''})`
-    const patch = patchOf(o, said, true, patchOf(preset ? PRESETS[preset] : null, said, false, patchOf(PLAIN, said, false)), () => 0)
+    const under = patchOf(preset ? PRESETS[preset] : null, said, false, patchOf(PLAIN, said, false))
+    // With a sound file for its sample, `note` and `loop` are the recording's: the note it is at, and whether it goes round.
+    const file = typeof o.sample === 'string' ? { note: o.note, loop: o.loop } : null
+    const given = withSamples(file ? Object.fromEntries(Object.entries(o).filter(([k]) => k !== 'note' && k !== 'loop')) : o, under, said, file || {})
+    const patch = patchOf(given, said, true, under, () => 0)
+    share(Object.keys(given), patch)
     const id = prefix + 's' + ++ids
     const c = { op: 'synth', id, t: clock() }
     if (preset) c.preset = preset
-    if (Object.keys(o).length) c.set = sendable(o)
+    if (Object.keys(given).length) c.set = sendable(given)
     if (macro !== undefined) c.macro = macro
     command(c)
-    return asSynth(new Synth(id, patch, (preset && PRESETS[preset].note) || 60, 0.3))
+    return asSynth(new Synth(id, patch, (preset && PRESETS[preset].note) || (file && file.note !== undefined ? noteNumber(file.note) : 60), 0.3))
   }
 
   function loadSample(path, o = {}) {
@@ -3285,17 +3450,11 @@ export function createSound(options = {}) {
     delete settings.note
     delete settings.loop
     const patch = patchOf(settings, said, true, patchOf(PRESETS.sample, said, false, patchOf(PLAIN, said, false)), () => 0)
-    const sid = prefix + 'w' + ++ids
-    const c = { op: 'sample', id: sid, name: path }
-    if (o.note !== undefined) c.note = noteNumber(o.note)
-    if (o.loop) c.loop = Array.isArray(o.loop) ? o.loop : true
-    if (options.read) {
-      Promise.resolve().then(() => options.read(path)).then((bytes) => { if (!bytes) throw new Error('it is not there'); command({ ...c, bytes }) })
-        .catch((e) => tell(`${said}: the file could not be read (${(e && e.message) || e}), so it will be silent.`))
-    } else command({ ...c, url: options.resolve ? options.resolve(path) : typeof document !== 'undefined' ? new URL(path, document.baseURI).href : path })
+    const sid = sampleFile(path, o, said)
+    patch.set(setting('osc1.sample').id, 0)
     const id = prefix + 's' + ++ids
     command({ op: 'synth', id, preset: 'sample', set: { ...sendable(settings), sample: sid }, t: clock() })
-    const synth = new Synth(id, patch, c.note ?? 60, null)
+    const synth = new Synth(id, patch, o.note !== undefined ? noteNumber(o.note) : 60, null)
     synth._sample = sid
     return asSynth(synth)
   }
@@ -3402,6 +3561,7 @@ export function createSound(options = {}) {
       micSynth = new Mic(prefix + 'm' + ++ids)
       mic = micSynth._self = asSynth(micSynth)
       patchOf({ micGate: MIC_GATE }, 'useMicrophone', false, micSynth._patch)
+      share(['micGate'], micSynth._patch)
       const c = { op: 'mic', id: micSynth._id, set: { micGate: MIC_GATE }, t: clock() }
       if (raw === false) c.raw = false
       hearBack()
@@ -3496,6 +3656,7 @@ export function createSound(options = {}) {
     command(c)
     command({ op: 'synth', id: sid, preset: 'sample', set: { sample: wid }, t: clock() })
     const made = new Take(sid, patchOf(PRESETS.sample, said, false, patchOf(PLAIN, said, false)), wid)
+    made._patch.set(setting('osc1.sample').id, 0)
     if (c.loop) made._loop = c.loop
     const take = made._self = asSynth(made)
     takes.set(wid, made)
@@ -3564,10 +3725,9 @@ export function createSound(options = {}) {
       const entry = setting(name)
       return entry && !entry.part ? { name: entry.name, kind: KINDS[entry.kind], min: entry.min, max: entry.max, default: entry.def, unit: entry.unit, ...(entry.choices ? { choices: [...entry.choices] } : {}) } : null
     },
-    get(name) { return key(name) === 'volume' ? volumeNow : effects.has(key(name)) ? effects.get(key(name)) : setting(name)?.def },
+    get(name) { const entry = setting(name); return key(name) === 'volume' ? volumeNow : entry && !entry.part ? readSetting(entry, forAll.get(entry.id)) : undefined },
     set(name, value) { if (key(name) === 'volume') api.setVolume(value); else api.setEffects({ [name]: value }) },
   }
-  const effects = new Map()
 
   /**
    * Write a section once and have it go round: loopNotes(() => { note("C4", "quarter"); bass.note("C2", "half") }).
@@ -3680,6 +3840,11 @@ export function createSound(options = {}) {
       },
       /** Where the song is: { state, order, pattern, row, tick, speed, tempo, rounds, rows, orders }, for drawing it. */
       get position() { return transport?.songPosition?.() || NO_SONG },
+      /** One channel of the song (the first is 0), for a meter or a scope of its own: song.channel(3).level(), .samples(), .notes(). */
+      channel(n) {
+        const read = () => transport?.read?.('song:channel:' + amount(n, 'channel', 0, 31), scope) || NOTHING
+        return { samples: () => read().samples, level: () => read().level, notes: () => read().notes }
+      },
     }
     song.loop_pattern = song.loopPattern
     return song
@@ -3719,7 +3884,7 @@ export function createSound(options = {}) {
       if (!given || typeof given !== 'object') throw new Error(`setEffects needs settings in braces, as in setEffects({ echoTime: 0.3 }), not ${shown(given)}`)
       const patch = patchOf(given, 'setEffects', true)
       for (const pid of patch.keys()) if (pid < 200) throw new Error(`setEffects is for the effects every synth shares: ${namesToShow.filter((n) => !setting(n).part).join(', ')}. A synth's own settings are set on the synth, as in lead.echo = 0.4`)
-      for (const [name, value] of Object.entries(given)) effects.set(key(name), value)
+      share(Object.keys(given), patch)
       command({ op: 'master', set: given, t: clock() })
     },
     /** How fast the beat is, in beats a minute. Beat 0 is now. */
@@ -3753,6 +3918,10 @@ export function createSound(options = {}) {
     },
   }
   for (const name of MIDI_FUNCTIONS) api[name] = (...args) => midiCall(name, args, name === 'midiDevices' ? { inputs: [], outputs: [], available: null } : undefined)
+  /** The MIDI input this program hears, as something a control can be tied to: select("midi in", midiInput(), "device"), and "channel"; level() for an activity light. */
+  api.midiInput = () => midiPort('input')
+  /** The MIDI output this program sends to, the same way: select("midi out", midiOutput(), "device"), and "channel". */
+  api.midiOutput = () => midiPort('output')
   // The Python spellings.
   for (const name of Object.keys(api)) {
     const snake = name.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase())
@@ -3846,6 +4015,8 @@ export const sendMidiClock = (on) => mine().sendMidiClock(on)
 export const midiDevices = () => mine().midiDevices()
 export const useMidiInput = (name) => mine().useMidiInput(name)
 export const useMidiOutput = (name) => mine().useMidiOutput(name)
+export const midiInput = () => mine().midiInput()
+export const midiOutput = () => mine().midiOutput()
 export const receiveMidi = (events) => mine().receiveMidi(events)
 export const stopMidi = () => { if (page) page.stopMidi() }
 // The microphone, recording and saving (see createSound's useMicrophone, recordSound and saveSound).
@@ -3870,7 +4041,7 @@ export {
   onMidiDevices as on_midi_devices, useMidiHooks as use_midi_hooks, sendMidi as send_midi, sendMidiNote as send_midi_note,
   sendMidiNoteOff as send_midi_note_off, sendMidiControl as send_midi_control, sendMidiBend as send_midi_bend,
   sendMidiProgram as send_midi_program, sendMidiClock as send_midi_clock, midiDevices as midi_devices,
-  useMidiInput as use_midi_input, useMidiOutput as use_midi_output, receiveMidi as receive_midi, stopMidi as stop_midi,
+  useMidiInput as use_midi_input, useMidiOutput as use_midi_output, midiInput as midi_input, midiOutput as midi_output, receiveMidi as receive_midi, stopMidi as stop_midi,
   useMicrophone as use_microphone, stopMicrophone as stop_microphone, recordSound as record_sound, startRecording as start_recording,
   stopRecording as stop_recording, recordOutput as record_output, saveSound as save_sound, receiveSoundEvents as receive_sound_events,
   voiceNames as voice_names,

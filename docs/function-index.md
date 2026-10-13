@@ -651,6 +651,7 @@ Fetched only by a scene that uses one of these names. Explained in [Sound and mu
 | `sendMidiClock(on)` | Sends the beat, so another device keeps time with `setTempo` | `send_midi_clock` |
 | `midiDevices()` | `{ inputs, outputs, available }` as they are known now | `midi_devices` |
 | `useMidiInput(name)`, `useMidiOutput(name)` | Listen to one input alone, and send to one output | `use_midi_input`, `use_midi_output` |
+| `midiInput()`, `lead.midiInput()`, `midiOutput()` | The MIDI device and channel as something a control is tied to: `select("device", midiInput(), "device")`, and `"channel"` | `midi_input`, `midi_output` |
 | `receiveMidi(message)` | Hands the scene a message as a keyboard would, for trying it with nothing plugged in | `receive_midi` |
 | `stopMidi()` | Stops everything MIDI is doing | `stop_midi` |
 
