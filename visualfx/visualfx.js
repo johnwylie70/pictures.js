@@ -1025,6 +1025,7 @@ class Listener {
     this.since = 1
     this.last = null
     this.stamp = 0 // goes up when the textures need sending again
+    this.used = false // nothing is asked of the sound until something here wants to know (a synth is not made to report for nothing)
     this.re = this.im = this.window = null
   }
 
@@ -1046,6 +1047,7 @@ class Listener {
   }
 
   update(dt) {
+    if (!this.used) return
     const ease = (now, to, up, down) => now + (to - now) * (1 - Math.exp(-dt / (to > now ? up : down)))
     const s = this.heard()
     let bass = 0, mids = 0, highs = 0, loud = 0
@@ -1458,6 +1460,7 @@ class Pipeline {
     if (L.amount) gl.uniform1f(L.amount, fx ? clamp(fx.get('amount'), 0, 1) : 1)
     if (L.seed && !(values && 'seed' in values)) gl.uniform1f(L.seed, 1)
     const l = this.listener
+    if (L.bass || L.mids || L.highs || L.loudness || L.pulse || L.spectrum || L.waveform) l.used = true
     if (L.bass) gl.uniform1f(L.bass, l.bass)
     if (L.mids) gl.uniform1f(L.mids, l.mids)
     if (L.highs) gl.uniform1f(L.highs, l.highs)
@@ -1852,7 +1855,7 @@ function api(pipe) {
   out.halftone = out.dots
   out.colorBleed = out.colourBleed
   out.godRays = out.lightRays
-  const band = (name) => () => pipe.listener[name]
+  const band = (name) => () => { pipe.listener.used = true; return pipe.listener[name] }
   const bands = { bass: band('bass'), mids: band('mids'), highs: band('highs'), loudness: band('loudness'), pulse: band('pulse') }
   const bandOf = (which) => {
     if (typeof which === 'function') return which
@@ -1890,6 +1893,7 @@ function api(pipe) {
     /** What the music is taken from: soundOutput(), a synth, a song, the microphone, or anything with samples(). */
     listenTo(target) {
       pipe.heard = true
+      pipe.listener.used = true
       pipe.listener.listen(target)
       return { ...bands, level: bands.loudness, spectrum: () => pipe.listener.spectrum, waveform: () => pipe.listener.waveform, stop() { pipe.listener.listen(null) } }
     },
@@ -1932,7 +1936,7 @@ function api(pipe) {
     call(id, name) { const fx = made.get(id); if (fx && typeof fx[name] === 'function') fx[name]() },
     listen: (target) => out.listenTo(target),
     /** The music's five numbers are told to `fn` as { b: [bass, mids, highs, loudness, pulse] } when they change, once it has answered the last with ack(). */
-    report(fn) { pipe.told = fn; pipe.armed = true },
+    report(fn) { pipe.told = fn; pipe.armed = true; pipe.listener.used = true },
     ack() { pipe.armed = true },
   })
   return out
