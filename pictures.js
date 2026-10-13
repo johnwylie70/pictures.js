@@ -1131,9 +1131,10 @@ function directScenes(env) {
       timeline()
       report()
       if (duration > 0 && env.bar !== false) bar = timelineBar(env.container, { time, duration: () => duration, sections, paused: () => paused, pause, seek: safely(seek) })
-      const first = pending
-      pending = null
-      enter(first && first.target !== undefined ? find(first.target, first.said) : 0)
+      // A go() at the top level says which scene is first; a nextScene() there is carried out from the first.
+      const first = pending?.target !== undefined ? pending : null
+      if (first) pending = null
+      enter(first ? find(first.target, first.said) : 0)
       const staged = {
         update: (dt) => { if (paused) return undefined; step(dt); return both('update', [dt]) },
         draw: () => both('draw', []),

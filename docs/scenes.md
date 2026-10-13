@@ -228,11 +228,11 @@ class Main extends Scene {
 }
 ```
 
-A program that plays a song can move the song when the scrubber moves, with a top-level `onSeek`:
+A program that plays a song can move the song when the scrubber moves, with a top-level `onSeek`. A song is moved by its orders, so the program says which order that time is:
 
 ```js
 function onSeek(seconds) {
-  song.seek(seconds)
+  song.seek(Math.floor(seconds / 8))    // in this song an order lasts 8 seconds
 }
 ```
 
