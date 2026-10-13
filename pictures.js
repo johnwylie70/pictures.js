@@ -99,7 +99,7 @@ const GIVEN = ['__loop', 'ctx', 'canvas', 'THREE', 'addons', 'frame', 'vsync', '
  * Do not edit them by hand.
  */
 /* SOUND_NAMES:BEGIN */
-const SOUND_NAMES = ['playSound', 'playNote', 'playNotes', 'makeSynth', 'loadSample', 'playSong', 'playArp', 'startArp', 'note', 'chord', 'rest', 'startLines', 'loopNotes', 'mainSynth', 'soundOutput', 'stopSong', 'stopSound', 'setVolume', 'muteSound', 'unmuteSound', 'setEffects', 'setTempo', 'beats', 'beat', 'soundTime', 'soundNames', 'synthNames', 'settingNames', 'onMidi', 'onMidiNote', 'onMidiNoteOff', 'onMidiControl', 'onMidiDevices', 'sendMidi', 'sendMidiNote', 'sendMidiNoteOff', 'sendMidiControl', 'sendMidiBend', 'sendMidiProgram', 'sendMidiClock', 'midiDevices', 'useMidiInput', 'useMidiOutput', 'receiveMidi', 'stopMidi', 'noteNumber']
+const SOUND_NAMES = ['playSound', 'playNote', 'playNotes', 'makeSynth', 'loadSample', 'playSong', 'useMicrophone', 'recordSound', 'startRecording', 'stopRecording', 'recordOutput', 'saveSound', 'stopMicrophone', 'voiceNames', 'playArp', 'startArp', 'note', 'chord', 'rest', 'startLines', 'loopNotes', 'mainSynth', 'soundOutput', 'stopSong', 'stopSound', 'setVolume', 'muteSound', 'unmuteSound', 'setEffects', 'setTempo', 'beats', 'beat', 'soundTime', 'soundNames', 'synthNames', 'settingNames', 'onMidi', 'onMidiNote', 'onMidiNoteOff', 'onMidiControl', 'onMidiDevices', 'sendMidi', 'sendMidiNote', 'sendMidiNoteOff', 'sendMidiControl', 'sendMidiBend', 'sendMidiProgram', 'sendMidiClock', 'midiDevices', 'useMidiInput', 'useMidiOutput', 'receiveMidi', 'stopMidi', 'noteNumber']
 /* SOUND_NAMES:END */
 /* DIAL_NAMES:BEGIN */
 const DIAL_NAMES = ['button', 'dial', 'keyboard', 'label', 'layout', 'meter', 'over', 'row', 'scope', 'select', 'slider', 'theme', 'toggle']

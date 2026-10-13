@@ -31,7 +31,7 @@ const COPIES = [
   ['dials.js', 'dials', ['dials.js', 'LICENSE']],
 ]
 // What createSound() has that is the host's to call, not a scene's.
-const HOSTS_OWN = new Set(['flush', 'close', 'player', 'pause', 'resume', 'settled', 'useMidiHooks'])
+const HOSTS_OWN = new Set(['flush', 'close', 'player', 'pause', 'resume', 'settled', 'useMidiHooks', 'receiveSoundEvents'])
 // What the sound module exports that a scene is given as well as createSound()'s functions.
 const SOUND_EXTRA = ['noteNumber']
 // What the dials module exports that is not a control.
