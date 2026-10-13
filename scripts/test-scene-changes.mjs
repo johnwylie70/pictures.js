@@ -102,7 +102,9 @@ for (const [name, type] of [['chromium', playwright.chromium], ['webkit', playwr
   let got
 
   // --- order
+  asked.length = 0
   got = await play(page, 'const LAST = false\n' + THREE)
+  say(same(asked, ['pictures.js', 'scenes/scenes.js']), name, 'a file with scenes fetches the scenes part, scenes/scenes.js', asked)
   say(same(got, ['One setup', 'One stop', 'Two setup', 'three setup', 'One setup', 'One stop', 'Two setup', 'three setup']), name,
     'every scene plays in the order written, classes and scene() alike, each for its length, and the last is followed by the first', got)
   got = await play(page, 'const LAST = true\nconfig({ loop: false })\n' + THREE)
@@ -222,6 +224,53 @@ class C extends Scene { setup() { log.push("C") } }
   seen = await change('{ transition: "fade", transitionTime: 30, transitionColor: "rgb(0,255,0)" }')
   got = [seen[0].at(100, 100), seen[0.25].at(100, 100), seen[0.5].at(100, 100), seen[1].at(100, 100)]
   say(near(got[0], RED, 1) && near(got[1], [128, 128, 0], 3) && near(got[2], [0, 255, 0], 1) && near(got[3], BLUE, 1), name, 'a fade goes through its colour: the old scene half under it at 0.25, the colour alone half way, the new scene at the end', got)
+  // A RECORDING has the transition: it is in the layer's own pixels, not a style, so drawing the scene's canvases one
+  // over another (what a recorder does) gives what the screen shows; and it moves by the scene's frame time alone.
+  const recorded = () => page.evaluate(() => {
+    const out = document.createElement('canvas')
+    out.width = 300; out.height = 200
+    const g = out.getContext('2d')
+    const styled = []
+    for (const c of document.querySelectorAll('#s canvas')) {
+      g.drawImage(c, 0, 0, 300, 200)
+      styled.push([c.style.opacity, c.style.clipPath, c.style.transform].join(''))
+    }
+    const at = (x, y) => [...g.getImageData(x, y, 1, 1).data].slice(0, 3)
+    return { styled: styled.join(''), a: at(100, 100), b: at(250, 100), c: at(50, 100), d: at(152, 100) }
+  })
+  got = []
+  for (const kind of ['crossfade', 'wipe', 'slide_left', 'fade']) {
+    await play(page, PAIR(`{ transition: "${kind}", transitionTime: 30 }`), { until: 'window.scene.scenes?.name === "Red"' })
+    await frames(page)
+    await key(page, 'a')
+    await page.waitForFunction(() => window.scene.scenes?.name === 'Blue' && window.scene.transition)
+    await page.evaluate(() => window.scene.transition.hold(0.5))
+    await frames(page, 2)
+    got.push(await recorded())
+  }
+  say(got.every((r) => r.styled === '') && near(got[0].a, [128, 0, 128], 3) && near(got[0].b, [128, 128, 255], 3) && same([got[1].a, got[1].d, got[1].b], [BLUE, RED, WHITE]) &&
+    same([got[2].a, got[2].c, got[2].d], [WHITE, RED, BLUE]) && near(got[3].a, [0, 0, 0], 1), name,
+    'a recording has the transition: with no style on any canvas, the scene\'s canvases drawn one over another are the crossfade, the wipe, the slide and the fade as the screen shows them', got)
+  // Stepped a frame at a time (a recorder's clock), a transition moves by exactly the time it is stepped.
+  await play(page, PAIR('{ transition: "crossfade", transitionTime: 1 }'), { until: 'window.scene.scenes?.name === "Red"' })
+  got = await page.evaluate(async () => {
+    // The page's frames, taken over: each is given the time the test says.
+    const queue = []
+    let now = performance.now()
+    window.requestAnimationFrame = (fn) => queue.push(fn)
+    await new Promise((done) => setTimeout(done, 100))
+    const step = (ms) => { now += ms; for (const fn of queue.splice(0)) fn(now) }
+    step(20)
+    for (const type of ['keydown', 'keyup']) window.scene.canvas.dispatchEvent(new KeyboardEvent(type, { key: 'a', code: 'a', bubbles: true }))
+    step(20)
+    const seen = []
+    for (let i = 0; i < 4; i++) { step(50); seen.push(Math.round(window.scene.transition.progress * 1000) / 1000) }
+    await new Promise((done) => setTimeout(done, 300))
+    seen.push(Math.round(window.scene.transition.progress * 1000) / 1000)
+    return seen
+  })
+  await page.goto(`${at}/test.html`)
+  say(same(got, [0.05, 0.1, 0.15, 0.2, 0.2]), name, 'stepped a frame at a time, a transition moves by the frames\' own time and stands still between them', got)
   // A 3D file: the picture a WebGL canvas showed is gone once shown, so the old scene is drawn once more to be kept.
   await play(page, `const renderer = new THREE.WebGLRenderer({ canvas })
 renderer.setSize(width, height, false)
@@ -315,6 +364,7 @@ function onSeek(t) { log.push("seek " + t.toFixed(1)) }
   say(got === false && untimed === false, name, 'no scrubber with controls: false, nor for a program whose length is not known (a scene the program ends itself)', { got, untimed })
 
   // --- a file with no scenes
+  await page.goto(`${at}/test.html`)
   asked.length = 0
   got = await play(page, `let n = 0
 const scene = { go: 1 }
@@ -322,7 +372,7 @@ function restart() { n = 0 }
 function update(dt) { n++ }
 function draw() { background("black"); if (n === 5) { restart(); window.result = [typeof sceneTime, window.scene.scenes, window.scene.transition, document.getElementById("s").dataset.picturesScene ?? null] } }
 `)
-  say(same(got, ['undefined', null, null, null]) && same(asked.filter((a) => a !== 'pictures.js'), []), name,
+  say(same(got, ['undefined', null, null, null]) && same(asked, ['pictures.js']), name,
     'a file with no scenes is one scene as before: no scene names in it, no director, nothing more fetched, and its own scene and restart are its own', { got, asked })
   await browser.close()
 }

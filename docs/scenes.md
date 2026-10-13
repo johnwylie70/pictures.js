@@ -203,6 +203,8 @@ go("Game", { transition: "wipe", transitionTime: 0.5 })
 
 During a transition the old scene is a still picture of its last frame. The new scene has already begun: its `setup()` has been called and its `update` and `draw` are running underneath. A transition starts and ends gently.
 
+A recording of the program has its transitions in it.
+
 The first scene of a program arrives with no transition.
 
 A 3D program has the same transitions. A file is 2D or 3D as a whole, so all its scenes are the one or the other.

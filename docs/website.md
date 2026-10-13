@@ -50,7 +50,8 @@ my-site/
     ├── three/        the whole three folder, needed only for 3D scenes
     ├── sqlite/       the whole sqlite folder, needed only for scenes that open a database
     ├── sound/        the whole sound folder, needed only for scenes that make sound
-    └── dials/        the whole dials folder, needed only for scenes with dials, sliders or a keyboard
+    ├── dials/        the whole dials folder, needed only for scenes with dials, sliders or a keyboard
+    └── scenes/       needed only for a file made of several scenes
 ```
 
 The `three` folder must sit beside `pictures.js`, because that is where a 3D scene's three.js is loaded from. A page with only 2D scenes never loads it, and can do without it. The `sqlite` folder is the same for a scene that calls `openDatabase`: SQLite is loaded from it the first time a database is opened, and never by a scene that opens none. The `sound` and `dials` folders are the same again: each is loaded by a scene that uses one of its names ([Sound and music](sound.md), [Dials, sliders and a keyboard](dials.md)), and by no other.
