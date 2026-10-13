@@ -617,13 +617,17 @@ Explained in [Sound and music](sound.md).
 | `note(name, length)`, `chord(name, length)`, `rest(length)` | The next note, chord or gap of a tune written a line at a time. A length is `"quarter"`, `"half"`…, or beats | `note`, `chord`, `rest` |
 | `loopNotes(lines)`, `startLines()` | A section of such lines that goes round, and every line begun again from now | `loop_notes`, `start_lines` |
 | `makeSynth(name, settings)` | A synth of your own, from a ready-made one or from settings. It has `play`, `start`, `stop`, `playNotes`, `arp`, `startArp`, `set`, and every setting as a property | `make_synth` |
+| `lead.play(note, length, { bend, glide, slide, vibrato })` | A note whose pitch moves: `bend: "scoop"`, `"fall"`, `"dip"` or `{ to, over }`, `glide` from the last note, `slide: 12`, `vibrato: true`. Also on `start` and `playNote`; a held note has `vibrato()` | `bend`, `glide`, `slide`, `vibrato` |
+| `pad.tranceGate = "x.x.xx.x"` | The trance gate: a synth's sound chopped in a pattern of steps on the beat. Settings `tranceGateRate`, `tranceGateDepth`, `tranceGateSmooth`, `tranceGateSwing`, `tranceGateStereo`, `tranceGateSends`; `pad.setTranceGate(pattern, { rate, depth })`; `pad.tranceGateStep()` | `trance_gate`, `set_trance_gate`, `trance_gate_step` |
+| `lead.arpPattern = "trance"` | A pattern of the synth's own that its arpeggios follow; `lead.arpStep()` is the step sounding | `arp_pattern`, `arp_step` |
+| `lead.noteOn(note, velocity, { at })`, `lead.noteOff(note, { at })` | A key down and up, at a time of `soundTime()` for a sequencer of your own | `note_on`, `note_off` |
 | `loadSample(path, options)` | A recorded sound from a file beside the scene, as a synth | `load_sample` |
 | `loadSamples(files)` | Several recordings as one instrument: `loadSamples({ C2: "piano-C2.wav", C3: "piano-C3.wav" })`; `{ kit: true }` is a drum kit | `load_samples` |
 | `playArp(chord, length, options)` | A chord as an arpeggio: fast on one voice, or with `{ step: "sixteenth" }` a note struck at each step in time with the tempo | `play_arp` |
 | `startArp(chord, options)` | An arpeggio that stays: `change(chord)`, `stop()`, and `gate`, `octaves`, `swing`, `accent`, `pattern`, `order`, `step` and `speed` to set as it plays | `start_arp` |
 | `mainSynth()` | The synth `playNote` and `playNotes` use | `main_synth` |
 | `soundOutput()` | All the sound together, for a scope or a meter | `sound_output` |
-| `setEffects(settings)` | The echo, reverb and chorus every synth shares | `set_effects` |
+| `setEffects(settings)` | The echo, reverb and chorus every synth shares; `reverbLevel` and `echoLevel` are how loud each comes back | `set_effects` |
 | `setVolume(amount)` | How loud everything is: 1 is normal | `set_volume` |
 | `muteSound()`, `unmuteSound()` | Silence, and back | `mute_sound`, `unmute_sound` |
 | `stopSound()` | Stops everything that is sounding or waiting to sound | `stop_sound` |
@@ -635,6 +639,8 @@ Explained in [Sound and music](sound.md).
 | `noteNumber(note)` | A note's number: `noteNumber("A4")` is 69 | `note_number` |
 | `soundNames()`, `synthNames()`, `settingNames()` | Lists of the game sounds, the ready-made synths and a synth's settings | `sound_names`, `synth_names`, `setting_names` |
 | `playSong(path, options)`, `stopSong()` | A song from a `.mod` or `.xm` file beside the scene. Gives a song with `pause()`, `resume()`, `seek(part)`, `stop()`, `volume` and `position`, and `mute(channel)`, `solo(channel)`, `loopPattern()` (`loop_pattern`) and `replace(song)` | `play_song`, `stop_song` |
+| `song.channel(n).volume`, `.pan`, `.reverb`, `.echo` | A channel's place in the song's mix, moved while it plays | the same |
+| `song.loop(start, end)` | A stretch of the song that goes round: `song.loop([1, 0], [5, 0])`; `song.loop(null)` runs on | `loop` |
 | `lead.voice`, `lead.pitchShift`, `lead.ringMod`, `lead.comb`, `lead.flanger` | On any synth: a voice by name (`"robot"`), the pitch shifter in semitones, the ring modulator, the comb and its sweep | `voice`, `pitch_shift`, `ring_mod`, `comb`, `flanger` |
 | `voiceNames()` | A list of the voices: robot, chipmunk, monster, cave, telephone, alien, whisper | `voice_names` |
 
