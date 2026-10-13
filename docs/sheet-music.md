@@ -21,6 +21,8 @@ The notes are written the way [`playNotes`](sound.md) takes them: a note is a le
 
 `page.play()` plays it and follows it: the notes that are sounding turn orange, a line moves through the bar, and the page turns when the music reaches the next line. Tap a note to hear it. Tap a bar to play from there.
 
+Two notes joined by a curved line are one note, held: that is a tie, and it is how a note is written when it lasts across a beat or a bar line. Both light together and you hear one sound.
+
 The first click, tap or key press on a page turns its sound on, as browsers require. A tune that is asked for before that waits, and begins when the sound is on: the line never moves through notes nobody can hear.
 
 ## What you can show
@@ -83,15 +85,17 @@ A note is `{ note, notes, name, start, length, staff, bar }`: `note.name` is `"C
 A tracker song (see [Sound and music](sound.md)) is written out from its own file, and the page follows it as it plays.
 
 ```js
-const written = await loadJSON("tune.json")
-const song = playSong("tune.json")
-const page = showNotes(written, { channels: [0, 1], follow: song })
+const song = await loadJSON("tune.json")
+const page = showNotes(song, { channels: [0, 1] })
+page.play()
 
 function draw() {
   background("#0b1020")
-  text(song.position.state === "playing" ? `bar ${page.bar}` : "Tap to start the song", width / 2, height - 24, "white", 18, "centre")
+  text(page.bar ? `bar ${page.bar}` : "Tap to start the song", width / 2, height - 24, "white", 18, "centre")
 }
 ```
+
+A page that shows a song plays the song itself: `page.play()` hands it to the sound library, which plays it with its own instruments, round and round (`{ repeat: false }` for once), and the page follows. `patches: { tune: "bell" }` says what the song's synths are, as `playSong` takes it. `page.bar` is the bar the song is in, and 0 until it has begun. A song you have started yourself is followed with `follow`: `showNotes(song, { follow: playSong("tune.json") })`.
 
 Tap a bar and the song jumps there. A song's rows become beats (four rows to a beat at the usual speed), a note lasts until the next on its channel, a chord is written as a chord and an arpeggio as its chord with a wavy line beside it, and drums get a staff of their own. Notes that slide or bend are written as the notes they start from: the slide itself is not shown. `channels` chooses which channels and in what order, `grand: true` puts the tuned ones together on a piano's two staves, and `drums: ["kick", "snare"]` says which instruments are drums when their names do not.
 
@@ -154,10 +158,10 @@ function draw() {
 
 | | |
 |---|---|
-| `page.play()` | play it and follow it. `page.play({ from: 8 })` starts eight beats in; `{ tempo: 90 }`, `{ repeat: true }` |
+| `page.play()` | play it and follow it. `page.play({ from: 8 })` starts eight beats in; `{ tempo: 90 }`, `{ repeat: true }`. A page that shows a song plays the song |
 | `page.stop()`, `page.playing` | stop it; is it playing? |
 | `page.follow(song)` | follow a song from `playSong`, or a function that gives how many beats have gone by (`page.follow(beat)`) |
-| `page.beat`, `page.bar`, `page.sounding` | where the music has got to, and the notes sounding now |
+| `page.beat`, `page.bar`, `page.sounding` | where the music has got to (`bar` counts from 1, and is 0 until it has begun), and the notes sounding now |
 | `page.onNote`, `page.onBar`, `page.onTap`, `page.onDone` | yours to set: a note began, a bar began, a note or a bar was tapped, the music ended |
 | `page.playAlong("wait")`, `page.noteOn(note)`, `page.noteOff(note)`, `page.result` | playing along |
 | `page.seek(5)`, `page.show(music)` | go to bar 5; show other music in its place |
