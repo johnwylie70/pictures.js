@@ -107,7 +107,7 @@ const GIVEN = ['__loop', 'ctx', 'canvas', 'THREE', 'addons', 'frame', 'vsync', '
 const SOUND_NAMES = ['playSound', 'playNote', 'playNotes', 'makeSynth', 'loadSample', 'playSong', 'useMicrophone', 'recordSound', 'startRecording', 'stopRecording', 'recordOutput', 'saveSound', 'stopMicrophone', 'voiceNames', 'playArp', 'startArp', 'note', 'chord', 'rest', 'startLines', 'loopNotes', 'mainSynth', 'soundOutput', 'stopSong', 'stopSound', 'setVolume', 'muteSound', 'unmuteSound', 'setEffects', 'setTempo', 'beats', 'beat', 'setSoundBuffer', 'soundBuffer', 'soundTime', 'soundNames', 'synthNames', 'settingNames', 'onMidi', 'onMidiNote', 'onMidiNoteOff', 'onMidiControl', 'onMidiDevices', 'sendMidi', 'sendMidiNote', 'sendMidiNoteOff', 'sendMidiControl', 'sendMidiBend', 'sendMidiProgram', 'sendMidiClock', 'midiDevices', 'useMidiInput', 'useMidiOutput', 'midiInput', 'midiOutput', 'receiveMidi', 'stopMidi', 'noteNumber']
 /* SOUND_NAMES:END */
 /* DIAL_NAMES:BEGIN */
-const DIAL_NAMES = ['button', 'column', 'dial', 'grid', 'group', 'keyboard', 'label', 'layout', 'meter', 'over', 'page', 'room', 'rotary', 'row', 'scope', 'select', 'slider', 'spacer', 'theme', 'toggle', 'wrap']
+const DIAL_NAMES = ['actionButton', 'arpPattern', 'busy', 'button', 'checkbox', 'choose', 'colorPicker', 'colourPicker', 'column', 'dial', 'dpad', 'dropdown', 'drumSeq', 'envelope', 'fader', 'gatePattern', 'grid', 'group', 'joystick', 'keyboard', 'label', 'layout', 'light', 'meter', 'modWheel', 'number', 'over', 'pads', 'page', 'pitchWheel', 'progress', 'radio', 'rangeSlider', 'readout', 'room', 'rotary', 'row', 'scope', 'select', 'slider', 'spacer', 'stepGrid', 'stepper', 'steps', 'textBox', 'theme', 'toggle', 'wheel', 'wrap', 'xyPad']
 /* DIAL_NAMES:END */
 /** The functions a scene may define, Python spelling beside the JavaScript one. */
 const HOOKS = {
@@ -499,17 +499,40 @@ const edgeWanted = (edge, a, b, c, d) => a === undefined || a === edge || b === 
 const uses3D = (source) => /\b(?:THREE|addons)\s*\./.test(codeOf(source))
 
 /**
+ * The names a scene's own functions are handed: `function f(a, progress = 1) { … }`, `(x, light) => …`, `number => …`.
+ * What stands in the brackets of an `if`, a `while`, a `for` or a `switch` is not one.
+ */
+function handedNames(code) {
+  const found = new Set()
+  for (const m of code.matchAll(/(\w+)\s*=>/g)) found.add(m[1])
+  for (const m of code.matchAll(/(\b\w+\s*)?\(([^()]*)\)\s*(?:=>|\{)/g)) {
+    if (/^(?:if|while|for|switch|with)\s*$/.test(m[1] || '')) continue
+    for (const part of m[2].split(',')) {
+      const word = /^\s*(?:\.\.\.)?\s*([A-Za-z_$][\w$]*)\s*(?:=|$)/.exec(part)
+      if (word) found.add(word[1])
+    }
+  }
+  return found
+}
+
+/**
  * Does the scene use one of these names (in either spelling)? `code` is the scene without comments and
  * strings. A name of two words (`playSound`) counts wherever it is written; a name of one word (`beat`,
  * `dial`, `row`) is an ordinary word too, so it counts only where it is called, and `thing.row(…)` and a
  * method written `row() { … }` are not calls of it. A name the scene makes itself (`function label(…)`,
- * `const { dial } = await use(…)`) is the scene's own and never counts.
+ * `const { dial } = await use(…)`, or what one of its functions is handed: `function load(progress) { progress(1) }`,
+ * `(light) => light(3)`) is the scene's own and never counts.
  */
 function usesAny(code, names) {
+  let handed = null
   for (const name of names) {
     const both = name === snake(name) ? name : `(?:${name}|${snake(name)})`
     const own = new RegExp(`\\b(?:function\\s*\\*?|class|const|let|var)\\s+${both}\\b|\\b(?:const|let|var)\\s*[{[][^=;]*[^.\\w$:]\\s*${both}\\s*[,}\\]=]`)
     if (own.test(code)) continue
+    if (!/[A-Z]/.test(name)) {
+      handed = handed || handedNames(code)
+      if (handed.has(name)) continue
+    }
     if (/[A-Z]/.test(name)) {
       if (new RegExp(`(?:^|[^.\\w$])${both}\\b`).test(code)) return true
       continue

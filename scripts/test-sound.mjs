@@ -58,6 +58,12 @@ const USES = [
   ['note, chord and rest as words of the scene\'s own', 'const chord = [1, 2]\nlet rest = 3\nfor (const note of chord) circle(note, rest, 5)\nchord.map((note) => note + rest)\n', '--'],
   ['a tune written a line at a time', 'note("E4", "quarter")\nrest()\n', 'S-'],
   ['beat() called', 'function draw() { circle(100, 100, 20 + 10 * (beat() % 1), "gold") }\n', 'S-'],
+  ['the new controls\' names as ordinary words', 'let number = 3, light = "on", progress = 0.5, busy = false, radio = [1], wheel = 2, pads = [], steps = 8\nconst fader = { level: 1 }, envelope = [0, 1], readout = "", stepper = 0, checkbox = true, dropdown = null, joystick = { x: 0 }, dpad = "up"\nfunction draw() { if (busy) return\n  text(number + light + radio.length + wheel + pads.length + steps, 10, 10 + progress) }\n', '--'],
+  ['and as what a function of the scene\'s is handed, then called', 'function load(progress) { progress(0.5) }\nconst each = (light, number = 1) => light(number)\nconst pick = choose => choose(2)\nfunction onKeyDown(key) { load((wheel) => wheel) }\n', '--'],
+  ['and as properties, methods and words in a loop', 'const car = { wheel: 4, light() { return 1 }, steps(n) { return n } }\ncar.light()\ncar.steps(3)\nfor (const number of [1, 2]) circle(number, car.wheel, 5)\nfor (let steps = 0; steps < 3; steps++) { }\nif (car.wheel) { car.light() }\n', '--'],
+  ['a new control, called', 'const lives = number("lives", 0, 9, 3)\n', '-C'],
+  ['a light, a bar and a stick, called', 'const on = light("ready")\nprogress("loading", 0.4)\nconst stick = joystick()\n', '-C'],
+  ['a control inside an if is still a control', 'if (true) { busy("thinking") }\n', '-C'],
   ['a dial', 'const speed = dial("speed", 0, 10)\n', '-C'],
   ['over() asked in an if', 'function onMouseDown(x, y) {\n  if (over(x, y)) {\n    return\n  }\n}\n', '-C'],
   ['the synth panel', PANEL, 'SC'],
@@ -66,6 +72,18 @@ for (const [what, source, want] of USES) {
   const uses = sceneUses(source)
   const got = (uses.sound ? 'S' : '-') + (uses.dials ? 'C' : '-')
   say(got === want, 'node', `what a scene uses: ${what}`, got)
+}
+{
+  // The examples: those written before there were controls or sound use neither still, whatever names the libraries gain.
+  const WITH = { 'arpeggio.js': 'S-', 'star_catcher.js': 'S-', 'tune.js': 'S-', 'midi_lights.js': 'S-', 'midi_keyboard.js': 'SC', 'sampler.js': 'SC', 'synth_panel.js': 'SC', 'voice_changer.js': 'SC' }
+  const files = (await readdir(join(ROOT, 'examples'))).filter((f) => f.endsWith('.js'))
+  const wrong = []
+  for (const f of files) {
+    const uses = sceneUses(await readFile(join(ROOT, 'examples', f), 'utf8'))
+    const got = (uses.sound ? 'S' : '-') + (uses.dials ? 'C' : '-')
+    if (got !== (WITH[f] || '--')) wrong.push(`${f}: ${got}`)
+  }
+  say(!wrong.length && files.length - Object.keys(WITH).length >= 28, 'node', `what a scene uses: the ${files.length - Object.keys(WITH).length} examples with no sound and no controls load neither library, and the ${Object.keys(WITH).length} with them load theirs`, wrong)
 }
 {
   // The start-up cost for a scene that uses neither: reading its text once. The longest example, a hundred times.

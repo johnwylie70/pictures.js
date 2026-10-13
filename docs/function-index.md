@@ -674,6 +674,28 @@ Explained in [Dials, sliders and a keyboard](dials.md).
 | `keyboard(target, options)` | A piano keyboard that plays a synth |
 | `scope(source)` | A live line: the wave a synth is making, or any list of numbers |
 | `meter(source)` | A level as a bar of lights |
+| `number(label, min, max, start)`, `stepper(…)` | A number box with − and +, which can be typed: `lives.value` |
+| `textBox(label, text)` | A line of text to type: `name.value` |
+| `readout(label, fn)` | Shows a value or a message |
+| `checkbox(label, on)` | A box that is ticked: `sound.on` |
+| `choose(label, choices, start)`, `radio(…)` | One of a few, all in sight, side by side or one under another |
+| `dropdown(label, choices, start)` | One of a long list, which opens |
+| `xyPad(label, target, "across", "up")` | A square where one finger sets two numbers: `pad.x`, `pad.y` |
+| `colourPicker(label, colour)`, `colorPicker(…)` | A colour to pick: `ink.value` |
+| `progress(label, value)` | A bar that fills, from 0 to 1 |
+| `light(label, on)`, `busy(label)` | A light, and a ring that goes round while something happens |
+| `rangeSlider(label, min, max, [low, high])` | A slider with two handles: `price.low`, `price.high` |
+| `fader(…)` | A slider that stands upright, as on a mixing desk |
+| `joystick()` | A stick for a thumb: `stick.x`, `stick.y` |
+| `dpad()` | A pad of arrows: `pad.left`, `pad.x`; `{ asKeys: true }` holds the arrow keys down for the scene |
+| `actionButton(label)` | A round button for a game: `fire.pressed` |
+| `envelope(label, target)` | A synth's attack, decay, sustain and release as a graph to drag |
+| `stepGrid(label, steps, rows)` | A grid of steps, each on or off: `grid.get("kick", 0)` |
+| `pads(label, names, target)` | Pads to hit, which play a synth |
+| `pitchWheel(…)`, `modWheel(…)`, `wheel(…)` | A wheel that rolls back, and one that stays |
+| `steps(label, 16)` | A lane of steps to tap and draw across: `lane.value`, `lane.text` |
+| `gatePattern(label, target)`, `arpPattern(label, target)` | A gate's steps as bars, and an arpeggio as a grid of chord notes |
+| `drumSeq(label, drums, target)` | A drum sequencer that plays by itself, with play, tempo, swing and starter patterns |
 | `label(text)` | Words; made just before some controls, their heading |
 | `group(title, fn)` | Controls kept together on one titled plate |
 | `row()` | Starts a new line; `row(fn)` keeps what it makes in a line |
