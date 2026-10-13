@@ -37,6 +37,8 @@ const SCENES = [
   ['high_score.js', 'High Score', 'Catch the star as often as you can in 10 seconds. The best score is still there next time: save() and load().', 'Click or tap the star.'],
   ['top_scores.js', 'Top Scores', 'Every game goes into a SQLite database, and the five best are shown: openDatabase().', 'Click or tap the star. When the time is up, click to play again.'],
   ['tune.js', 'Tune', 'A melody, a bass line and drums, each a line of notes: playNotes().', 'Click or tap to start it, and again to stop.'],
+  ['midi_keyboard.js', 'MIDI Keyboard', 'A synth that a MIDI keyboard plays, with dials that its knobs turn: playFromMidi() and learn().', 'Play a MIDI keyboard and move three knobs. Or play the keys on the screen and drag the dials.'],
+  ['midi_lights.js', 'MIDI Lights', 'Every key of a MIDI keyboard rings a bell and throws a ball up the picture: onMidiNote().', 'Play a MIDI keyboard and turn a knob. Or click, tap or press a key to pretend.'],
   ['arpeggio.js', 'Arpeggio', 'Chords from one voice, as a Commodore 64 played them, over a chip bass and drums: startArp().', 'Click or tap to start it, and again to stop.'],
   ['cube_spiral.js', 'Cube Spiral', '400 cubes in a rainbow spiral, turning.', 'Drag to look around.'],
   ['cube_dodge.js', 'Cube Dodge', 'A 3D game with shadows, fog and the keyboard.', 'Arrow keys or drag. Dodge the red blocks.'],
