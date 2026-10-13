@@ -519,6 +519,24 @@ const now = soundBuffer()      // { frames: 4096, delay: 179, thread: "page", un
 ```
 
 A page that is not served over https (a page on your own computer opened on a phone or an iPad by the computer's address) makes its sound on the page's own thread, a buffer at a time, and clicks when the page is busy for longer than a buffer lasts. A larger buffer rides over that and is heard later: `"large"` is about a fifth of a second from a key to its note, `"small"` a twentieth. `"auto"` lets the library choose, and double it once if it keeps clicking. It may be called before the first sound or at any time. `delay` is the milliseconds from a key to its note, `underruns` counts the clicks, and `thread` is `"page"` there and `"audio"` on an https page, where there is nothing to fix and the same call sets how far ahead everything is scheduled instead.
+## Recording a video with sound
+
+**In Circuitry**, press the video button under the scene, choose a size and 30 or 60 frames a second, and press Record. The scene starts again from its beginning and is recorded until you press Stop. You get one `.mp4` file with the pictures and the sound in it, saved beside the scene (or to Photos or a folder you choose, on an iPad).
+
+The sound in the video is exactly in step with the pictures, however slowly the frames were made. A recorder films a scene one frame at a time, and each frame may take much longer to draw and encode than the sixtieth of a second it stands for. So while a scene is recorded its sound is not played by the sound card: it is worked out for one frame at a time, on the same clock as the pictures, and you hear nothing until you play the video. Your scene does not change. `soundTime()`, `beat()`, a song's `position`, and what a scope or `bass()` shows all go by the video's time, a note you play in a frame starts on that frame's first sample, and recording the same scene twice gives the same sound. There is no microphone in a recording.
+
+**On a page of your own**, tell the scene it will be stepped, move the page's clock yourself, and take the samples:
+
+```js
+const scene = runScene(box, { src: "main.js", stepped: { fps: 60 } })
+await scene.ready                                   // its setup() has run
+// for each frame: move your clock (requestAnimationFrame and performance.now are yours), then
+await scene.sound.stepped.advance(performance.now() / 1000)   // the sound up to this frame, before it is drawn
+const { left, right, sampleRate } = scene.sound.stepped.take()   // the samples of the frame before
+// ... now run the frame, and copy the canvas
+```
+
+Sixty frames are 48000 samples: every frame is `sampleRate / fps` of them, with the remainder carried, so nothing drifts over a long film. `scene.sound` is the library's stepped player, and [its page for apps](https://github.com/johnwylie70/synths.js/blob/main/docs/commands.md) has the rest. If you would rather not write the loop, [visualfx.js](https://github.com/johnwylie70/visualfx.js) has it: `await recordVideo({ seconds: 20, fps: 60, sound: scene })` gives a WebM file with the sound in it.
 
 ## The Python spellings
 

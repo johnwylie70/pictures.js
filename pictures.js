@@ -722,6 +722,7 @@ const scenesWritten = (code) => [...code.matchAll(/\bclass\s+([A-Za-z_$][\w$]*)\
  *                     read?: (id?: string) => { samples: Float32Array, level: number[], notes: number[] },
  *                     wasm?: ArrayBuffer | Uint8Array | WebAssembly.Module | string | Promise<any>, worklet?: 'auto' | 'blob' | 'file' | string,
  *                     latency?: number, context?: AudioContext, destination?: AudioNode, fallback?: boolean | 'always', onState?: (state: string) => void },
+ *           stepped?: boolean | { fps?: number, sampleRate?: number },
  *           microphone?: false | MediaStream | ((wants: object) => any) | { open: (wants: { sampleRate: number, raw: boolean, constraints: object, push: (frames: Float32Array, sampleRate?: number) => void }) => any, close?: () => void },
  *           save?: (file: { name: string, bytes: Uint8Array, type: string }) => void,
  *           midi?: false | { open?: () => void | Promise<void>, inputs: () => string[], outputs: () => string[],
@@ -749,6 +750,13 @@ const scenesWritten = (code) => [...code.matchAll(/\bclass\s+([A-Za-z_$][\w$]*)\
  *   and `worklet` how its audio worklet is loaded ('blob', from text already inside the library, needs no file). The rest are the
  *   player's own options (synths.js's createPlayer): `destination` is a node to play into (a recorder), `fallback: 'always'` makes
  *   the sound on the page's thread where an audio worklet will not load.
+ *   `stepped` is for a host that records the scene as a video by moving the page's clock one frame at a time (requestAnimationFrame
+ *   and performance.now are the host's, each frame exactly 1/fps after the last however long it took to draw): `{ fps: 60 }` says so
+ *   and at what rate. The scene's sound is then made on that clock too, with no sound card, so it stays with the pictures to the
+ *   sample and the scene's code is what it was: playSong, playNotes, beat(), soundTime() and a song's position all read the stepped
+ *   clock. What is returned has the player as `sound`; the host says how far the clock has moved before each frame is drawn,
+ *   `await scene.sound.stepped.advance(performance.now() / 1000)`, and takes the samples with `scene.sound.stepped.take()`
+ *   (synths.js's createSteppedPlayer). A stepped scene is not paused when it is out of view. Nothing is heard while it is recorded.
  *   `midi` is the MIDI devices themselves, for a host whose browser has no Web MIDI (an iPad app, with CoreMIDI behind it): a plain
  *   object of functions (synths.js's docs/midi.md, "The midi option"), used in place of the browser's own. `midi: false` switches MIDI
  *   off. Without it the browser's Web MIDI is asked the first time a scene uses MIDI, and where there is none the scene still runs
@@ -777,9 +785,10 @@ const scenesWritten = (code) => [...code.matchAll(/\bclass\s+([A-Za-z_$][\w$]*)\
  *   known), and `onScene(name, index)` each scene as it begins. The same are events on the container: `pictures-sections`, `pictures-scene`.
  *   `transitions` adds transitions by name to the ones built in (see SCENES, "MORE TRANSITIONS").
  * @returns {{ stop(): void, restart(source?: string): void, showFps(on: boolean): void, canvas: HTMLCanvasElement, sound: object | null,
- *             scenes: object | null, transition: object | null }}
+ *             scenes: object | null, transition: object | null, ready: Promise<void> }}
+ *   `ready` is a promise of the scene having run its top level and its setup(), which a recorder waits for before its first frame.
  *   `sound` is the page's sound player while a scene that uses sound runs (synths.js's: `state`, `context`, `node`; the scenes of
- *   a page share one), and null otherwise.
+ *   a page share one), and null otherwise. A stepped scene has a player of its own, with `stepped` (see the option).
  *   `scenes` is the file's scenes while a file that has them runs: `name` (the current one), `time`, `duration`, `sections`, `paused`,
  *   `seek(seconds)`, `pause(on)` and `go(name)`; null for a file with none. `transition` is the transition going on now, or null:
  *   `{ name, seconds, progress, from, to, hold(progress), release() }` (`from` is a canvas with the old scene's last picture, `to` the
@@ -821,7 +830,13 @@ export function runScene(container, options = {}) {
   let voice = null // the sound functions of the scene that is running, when it uses sound
   let stage = null // the director of the scenes of the file that is running, when it has scenes (see SCENES)
   let changing = null // its transitions
+  // A host that records the scene a frame at a time says so, and at what rate (see `stepped`).
+  const asked = options.stepped ?? options.sound?.stepped
+  const stepped = asked ? { fps: asked.fps > 0 ? asked.fps : 60, sampleRate: asked.sampleRate } : null
   let stopRun = () => {}
+  // Resolved when the run that is going has finished its top level and its setup(), or has failed or been stopped.
+  let settled = () => {}
+  let ready = Promise.resolve()
   // The frame rate, top left, when asked for: frames counted over half a second, and under it
   // any parts of the frame the scene times itself with measure(). When a run ends its last
   // reading stays, dimmed; the next run starts a fresh one.
@@ -902,6 +917,11 @@ export function runScene(container, options = {}) {
     stopRun()
     const mine = ++run
     const live = () => mine === run
+    settled()
+    ready = new Promise((yes) => { settled = yes })
+    try { await run1(mine, live) } finally { if (live()) settled() }
+  }
+  async function run1(mine, live) {
     status('starting')
     notice?.remove()
     delete container.dataset.picturesScene
@@ -1861,8 +1881,11 @@ export function runScene(container, options = {}) {
       if (soundLib) {
         const host = options.sound || {}
         // (`read` is the host player's own, part of the transport; the rest are the player's options.)
-        const { send, read, readBytes, ...playing } = host
+        const { send, read, readBytes, stepped: _, ...playing } = host
         if (options.midi !== undefined) playing.midi = options.midi
+        // RECORDED A FRAME AT A TIME: the sound is made on the clock the recorder moves, by a player of the scene's own
+        // that has no sound card (synths.js's createSteppedPlayer). The host moves it and takes the samples.
+        if (stepped && !send) { playing.stepped = { fps: stepped.fps, ...(stepped.sampleRate ? { sampleRate: stepped.sampleRate } : {}) }; playing.share = false }
         // THE MICROPHONE AND SAVED SOUND are the player's too: `options.microphone` is a host's own microphone (a stream, or
         // frames it pushes) or false for none, and `options.save` takes the WAV files saveSound makes. With neither said, a
         // host that keeps the scene's files (`storage.writeBytes`) is given a saved sound as a file among them, by its name;
@@ -1892,7 +1915,8 @@ export function runScene(container, options = {}) {
         sound = voice = soundLib.createSound({ ...playing, sound: send ? host : undefined, resolve: at, read: readBytes && ((path) => host.readBytes(path)) })
         let quiet = null
         hush = () => {
-          const now = !inView || document.hidden
+          // A scene that is being recorded is given every frame, seen or not, and its sound goes with them.
+          const now = !stepped && (!inView || document.hidden)
           if (now === quiet) return
           quiet = now
           quiet ? sound.pause() : sound.resume()
@@ -1959,7 +1983,7 @@ export function runScene(container, options = {}) {
       const tick = (now) => {
         if (!live()) return
         raf = requestAnimationFrame(tick)
-        if (!inView) { last = 0; return }
+        if (!inView && !stepped) { last = 0; return }
         if (meter) {
           counted++
           if (now - countedSince >= 500) {
@@ -1976,7 +2000,7 @@ export function runScene(container, options = {}) {
             sections = {}
           }
         }
-        const dt = last ? Math.min(0.1, (now - last) / 1000) : 1 / 60
+        const dt = last ? Math.min(0.1, (now - last) / 1000) : 1 / (stepped ? stepped.fps : 60)
         last = now
         if (stirred) latch()
         if (looping) {
@@ -2054,7 +2078,9 @@ export function runScene(container, options = {}) {
     get sound() { return voice?.player ?? null },
     get scenes() { return stage },
     get transition() { return changing?.running ?? null },
-    stop() { run++; stopRun() },
+    /** A promise of the scene having run its top level and its setup(): from then on every frame is update() and draw(). It is also kept when the scene fails or is stopped first. */
+    get ready() { return ready },
+    stop() { run++; stopRun(); settled() },
     showFps(on) { wantFps = !!on; fitMeter() },
     restart(next) { if (next != null) source = next; start() },
   }
