@@ -129,7 +129,7 @@ Every setting is a plain property, and reads back what you set.
 | `echo`, `reverb`, `chorus` | How much of the synth goes to each effect (0 to 1) |
 | `distortion`, `crush` | Grit (0 to 1), and the bits each sample keeps (16 is clean, 4 is an old games console) |
 
-There are more: `settingNames()` lists every one. The echo, the reverb and the chorus are shared by all the synths, and are shaped with `setEffects({ echoTime: 0.3, echoFeedback: 0.5, reverbSize: 0.8 })`.
+There are more: `settingNames()` lists every one. The echo, the reverb and the chorus are shared by all the synths, and are shaped with `setEffects({ echoTime: 0.3, echoFeedback: 0.5, reverbSize: 0.8 })`. The reverb is one room that every synth sends into: `setEffects({ reverbType: "hall" })` chooses what kind of space it is (`"room"`, `"hall"`, `"plate"`, `"cathedral"` or `"spring"`), and `reverbDecay: 3` how many seconds it rings. A shared setting has one value whoever set it: `lead.reverbType = "hall"` is the same thing, and every synth reads it back.
 
 To change a synth by hand while it plays, put a dial on it: see [Dials, sliders and a keyboard](dials.md).
 
