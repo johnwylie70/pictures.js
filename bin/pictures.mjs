@@ -10,12 +10,12 @@ import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { watch } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { basename, dirname, extname, join, normalize, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const HOME = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json',
   '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
-  '.svg': 'image/svg+xml', '.webp': 'image/webp', '.txt': 'text/plain', '.wasm': 'application/wasm', '.mp3': 'audio/mpeg', '.wav': 'audio/wav' }
+  '.svg': 'image/svg+xml', '.webp': 'image/webp', '.txt': 'text/plain', '.wasm': 'application/wasm', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg' }
 
 /**
  * The page round a scene: the scene fills it and has the keyboard.
@@ -106,6 +106,10 @@ if (command === 'run') {
   if (/\b(THREE|addons)\s*\./.test(code)) await cp(join(HOME, 'three'), join(out, 'pictures', 'three'), { recursive: true })
   // SQLite goes with a scene that opens a database.
   if (/\bopen(Database|_database)\s*\(/.test(code)) await cp(join(HOME, 'sqlite'), join(out, 'pictures', 'sqlite'), { recursive: true })
+  // Sound and on-screen controls go with a scene that uses them, by the same test the scene is run with.
+  const { sceneUses } = await import(pathToFileURL(join(HOME, 'pictures.js')).href)
+  const uses = sceneUses(code)
+  for (const part of ['sound', 'controls']) if (uses[part]) await cp(join(HOME, part), join(out, 'pictures', part), { recursive: true })
   await writeFile(join(out, 'index.html'), page(scene, 'pictures/pictures.js', false))
   console.log(`Built ${out} (open index.html from a web server, or put the folder on any static host)`)
 } else {

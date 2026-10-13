@@ -79,6 +79,19 @@ const AsyncFunction = (async () => {}).constructor
 /** The names a scene is given, in the order they are passed. */
 const GIVEN = ['__loop', 'ctx', 'canvas', 'THREE', 'addons', 'frame', 'vsync', 'flush', 'sleep', 'keys', 'mouse', 'pressed', 'released',
   'touches', 'pinch', 'circle', 'rect', 'line', 'text', 'background', 'triangle', 'ellipse', 'polygon', 'star', 'picture', 'random', 'pick', 'degrees', 'Sprite', 'remove', 'loadImage', 'load_image', 'loadText', 'load_text', 'loadJSON', 'load_json', 'saveText', 'save_text', 'saveJSON', 'save_json', 'openDatabase', 'open_database', 'loadFont', 'load_font', 'save', 'load', 'use', 'measure']
+/**
+ * SOUND AND ON-SCREEN CONTROLS are two sibling libraries, each in a folder beside this file (`sound`,
+ * `controls`) and each loaded only for a scene that uses one of its names (see `usesAny`). These are
+ * the names: a scene that uses any of a list is given all of it, in both spellings (`playSound`,
+ * `play_sound`). The lists are written by scripts/sync-siblings.mjs from the copies in those folders.
+ * Do not edit them by hand.
+ */
+/* SOUND_NAMES:BEGIN */
+const SOUND_NAMES = ['playSound', 'playNote', 'playNotes', 'makeSynth', 'loadSample', 'playSong', 'playArp', 'startArp', 'mainSynth', 'soundOutput', 'stopSong', 'stopSound', 'setVolume', 'muteSound', 'unmuteSound', 'setEffects', 'setTempo', 'beats', 'beat', 'soundTime', 'soundNames', 'synthNames', 'settingNames', 'noteNumber']
+/* SOUND_NAMES:END */
+/* CONTROL_NAMES:BEGIN */
+const CONTROL_NAMES = ['button', 'dial', 'keyboard', 'label', 'layout', 'meter', 'over', 'row', 'scope', 'select', 'slider', 'theme', 'toggle']
+/* CONTROL_NAMES:END */
 /** The functions a scene may define, Python spelling beside the JavaScript one. */
 const HOOKS = {
   setup: ['setup'], update: ['update'], draw: ['draw'],
@@ -330,9 +343,11 @@ export function guardLoops(source) {
  * The scene as a function. `width`, `height` and the pixel ratio are real
  * variables of an outer function, which the runtime sets on a resize; the
  * scene's own code sits one function inside, so it may declare any name
- * again. It hands back the hooks it defined.
+ * again. It hands back the hooks it defined. `more` is the names of the
+ * sound and the controls, for a scene that uses them: any other scene is
+ * compiled without them, exactly as it was before there were any.
  */
-function compile(source, name, guarded) {
+function compile(source, name, guarded, more = []) {
   const found = Object.entries(HOOKS).map(([hook, names]) =>
     `${hook}: ${names.map((n) => `typeof ${n} === 'function' ? ${n} : `).join('')}undefined`).join(', ')
   const body = `let width = 0, height = 0, pixelRatio = 1, pixel_ratio = 1; __size((w, h, r) => { width = w; height = h; pixelRatio = pixel_ratio = r })
@@ -341,7 +356,7 @@ ${guarded ? guardLoops(source) : source}
 ;return { ${found} }
 })()
 //# sourceURL=${name}`
-  return new AsyncFunction(...GIVEN, '__size', body)
+  return new AsyncFunction(...GIVEN, ...more, '__size', body)
 }
 
 /** The scene's code without its comments and strings, for the tests on what it uses. */
@@ -449,6 +464,55 @@ const edgeWanted = (edge, a, b, c, d) => a === undefined || a === edge || b === 
 
 /** A 3D scene names THREE in its code (not in a comment or a string); only then is three.js loaded, and no 2D context is made. */
 const uses3D = (source) => /\b(?:THREE|addons)\s*\./.test(codeOf(source))
+
+/**
+ * Does the scene use one of these names (in either spelling)? `code` is the scene without comments and
+ * strings. A name of two words (`playSound`) counts wherever it is written; a name of one word (`beat`,
+ * `dial`, `row`) is an ordinary word too, so it counts only where it is called, and `thing.row(…)` and a
+ * method written `row() { … }` are not calls of it. A name the scene makes itself (`function label(…)`,
+ * `const { dial } = await use(…)`) is the scene's own and never counts.
+ */
+function usesAny(code, names) {
+  for (const name of names) {
+    const both = name === snake(name) ? name : `(?:${name}|${snake(name)})`
+    const own = new RegExp(`\\b(?:function\\s*\\*?|class|const|let|var)\\s+${both}\\b|\\b(?:const|let|var)\\s*[{[][^=;]*[^.\\w$:]\\s*${both}\\s*[,}\\]=]`)
+    if (own.test(code)) continue
+    if (/[A-Z]/.test(name)) {
+      if (new RegExp(`(?:^|[^.\\w$])${both}\\b`).test(code)) return true
+      continue
+    }
+    for (const m of code.matchAll(new RegExp(`(?:^|[^.\\w$])${both}\\s*\\(`, 'g'))) {
+      // To the bracket that closes the call: a `{` straight after it makes this a method being written.
+      let i = m.index + m[0].length, depth = 1
+      for (; i < code.length && depth; i++) depth += code[i] === '(' ? 1 : code[i] === ')' ? -1 : 0
+      if (!/^\s*\{/.test(code.slice(i, i + 40))) return true
+    }
+  }
+  return false
+}
+
+/** Which of the parts that are loaded on first use a scene's text asks for. `pictures build` copies the same ones. */
+export function sceneUses(source) {
+  const code = codeOf(source)
+  return { three: uses3D(source), sound: usesAny(code, SOUND_NAMES), controls: usesAny(code, CONTROL_NAMES) }
+}
+
+/**
+ * A sibling library, loaded the first time a scene uses it: the module in its folder beside this file.
+ * A failure is not remembered, so the next scene tries again.
+ */
+const SIBLINGS = { sound: 'sound/synths.js', controls: 'controls/controls.js' }
+const siblings = {}
+function loadSibling(which) {
+  const address = new URL(SIBLINGS[which], BASE).href
+  siblings[which] ??= import(address).catch((e) => {
+    delete siblings[which]
+    throw new Error(`This scene uses ${which === 'sound' ? 'sound' : 'on-screen controls'}, and that part of pictures.js could not be loaded: ${address} (${e?.message ?? e})`)
+  })
+  return siblings[which]
+}
+/** A sibling's names for a scene, in both spellings. */
+const bothSpellings = (names) => [...new Set(names.flatMap((n) => [n, snake(n)]))]
 
 let three = null
 function loadThree() {
@@ -558,6 +622,11 @@ function syntaxLine(source) {
  *           storage?: { readText?: (path: string) => Promise<string | null>, writeText?: (path: string, text: string) => Promise<void>,
  *                       readBytes?: (path: string) => Promise<Uint8Array | null>, writeBytes?: (path: string, bytes: Uint8Array) => Promise<void> },
  *           sqlite?: string,
+ *           sound?: { send?: (batch: { synths: number, now: number, cmds: object[] }) => void, pause?: () => void, resume?: () => void,
+ *                     readBytes?: (path: string) => Promise<Uint8Array | ArrayBuffer>, ids?: string,
+ *                     read?: (id?: string) => { samples: Float32Array, level: number[], notes: number[] },
+ *                     wasm?: ArrayBuffer | Uint8Array | WebAssembly.Module | string | Promise<any>, worklet?: 'auto' | 'blob' | 'file' | string,
+ *                     latency?: number, context?: AudioContext, destination?: AudioNode, fallback?: boolean | 'always', onState?: (state: string) => void },
  *           pictures?: { methods: { name: string, options?: string[] }[], run: (picture: HTMLImageElement | unknown, name: string, options: object) => Promise<object>,
  *                        save?: (picture: HTMLImageElement | unknown, path: string) => Promise<string>, available?: () => Promise<string[]> },
  *           onError?: (message: string, line: number) => void,
@@ -570,6 +639,15 @@ function syntaxLine(source) {
  *   real files to give it: any of `readText`, `writeText`, `readBytes` and `writeBytes`, each given a clean relative path. A read
  *   gives null for a file that is not there. Without it, or for the ones left out, the browser keeps them (see FILES AND DATABASES).
  *   `sqlite` is the folder sql.js is loaded from (`sql-wasm.js` and `sql-wasm.wasm`), in place of the `sqlite` folder beside this file.
+ *   `sound` is where a scene's sound is made (playSound, makeSynth and the rest; see SOUND). Without it the page plays. With `send`
+ *   the page plays nothing and makes no player: the host is handed every batch of sound commands (synths.js's docs/commands.md) to
+ *   play where it likes, is told `pause()` and `resume()` as the scene goes out of view and comes back, and is sent a `stop` command
+ *   when the scene ends. `readBytes(path)` then gives a sample's bytes, which go in the batch in place of an address, `ids` begins every
+ *   id, for scenes that share one player, and `read(id)` is what a synth is doing now, for a scope, a meter and lit keys (the host
+ *   player's own `read`; without it they show nothing). For a page that plays but may fetch nothing: `wasm` is the engine's bytes (`sound/synths_core.wasm`)
+ *   and `worklet` how its audio worklet is loaded ('blob', from text already inside the library, needs no file). The rest are the
+ *   player's own options (synths.js's createPlayer): `destination` is a node to play into (a recorder), `fallback: 'always'` makes
+ *   the sound on the page's thread where an audio worklet will not load.
  *   `pictures` gives a loaded picture its methods (`await img.removeBackground()`), for a host that can change pictures: the list of
  *   them and the functions that do the work (see PICTURE METHODS). Without it a picture has none, and says where they work.
  *   `stopStuckLoops` stops a loop that holds the page for 4 seconds (see `guardLoops`); off unless asked for.
@@ -577,7 +655,8 @@ function syntaxLine(source) {
  *   `keyboard` gives the scene the keyboard from the start (a scene that is the whole page).
  *   `crossOrigin` ('anonymous') is set on the images `loadImage` makes from the scene's own files, for a host
  *   whose page is on another origin than those files: the canvas can then still be read back, and WebGL may use the picture.
- * @returns {{ stop(): void, restart(source?: string): void, showFps(on: boolean): void, canvas: HTMLCanvasElement }}
+ * @returns {{ stop(): void, restart(source?: string): void, showFps(on: boolean): void, canvas: HTMLCanvasElement, sound: object | null }}
+ *   `sound` is the page's sound player while a scene that uses sound runs (synths.js's: `state`, `context`, `node`), and null otherwise.
  */
 export function runScene(container, options = {}) {
   let run = 0
@@ -612,6 +691,7 @@ export function runScene(container, options = {}) {
   if (!container.clientHeight) container.style.aspectRatio = '16 / 9'
   let canvas = null
   let notice = null
+  let player = null // the page's sound player, while a scene that uses sound runs
   let stopRun = () => {}
   // The frame rate, top left, when asked for: frames counted over half a second, and under it
   // any parts of the frame the scene times itself with measure(). When a run ends its last
@@ -733,7 +813,9 @@ export function runScene(container, options = {}) {
       const takesPointer = usesPointer(source, code)
       const takesWheel = usesWheel(code), takesPinch = usesPinch(code)
       canvas.style.touchAction = takesPointer ? 'none' : 'pan-y'
-      const { THREE, addons } = is3D ? await loadThree() : {}
+      // Sound and on-screen controls: asked of the scene's text, as three.js is, and loaded only for a scene that uses them.
+      const wantsSound = usesAny(code, SOUND_NAMES), wantsControls = usesAny(code, CONTROL_NAMES)
+      const [{ THREE, addons }, soundLib, controlsLib] = await Promise.all([is3D ? loadThree() : {}, wantsSound && loadSibling('sound'), wantsControls && loadSibling('controls')])
       if (!live()) return
       // three.js loaders take the same table (one scene to a page when it is used).
       if (THREE && files) THREE.DefaultLoadingManager.setURLModifier((url) => files[url] || url)
@@ -742,6 +824,7 @@ export function runScene(container, options = {}) {
       // (Declared here because a resize may draw: the frame loop below sets them.)
       let looping = false
       let hooks = {}
+      let panel = null // the on-screen controls, for a scene that uses them
       const call = (fn, ...args) => {
         if (!fn || !live()) return
         try {
@@ -912,6 +995,8 @@ export function runScene(container, options = {}) {
         // A pointer whose lift was never heard (the window was left mid-press) is lifted first.
         if (fingers.has(e.pointerId)) lift(e, true)
         point(e)
+        // A press on a dial or a key is the control's: the scene is not told of it, so turning a dial does not also fire the ship.
+        if (panel?.over(px, py)) return
         const touch = new Finger(e.pointerId, px, py, e.pointerType || 'mouse')
         fingers.set(e.pointerId, { touch, dx: 0, dy: 0 })
         touches.push(touch)
@@ -1622,9 +1707,49 @@ export function runScene(container, options = {}) {
       // A scene out of view waits: a page with many scenes only runs the ones looked at.
       let inView = true
       if (typeof IntersectionObserver === 'function') {
-        const views = new IntersectionObserver((entries) => { inView = entries[entries.length - 1].isIntersecting })
+        const views = new IntersectionObserver((entries) => { inView = entries[entries.length - 1].isIntersecting; hush?.() })
         views.observe(container)
         cleanup.push(() => views.disconnect())
+      }
+
+      // --- SOUND. The functions (synths.js's createSound) only write commands; a batch of them goes to a player on
+      // this page, made here so that it can be paused and closed with the scene, or to the host (`options.sound.send`).
+      // The player is made before the scene runs, so the engine is loaded by the time of the first tap: browsers keep
+      // a page silent until a tap, a click or a key press, and the player listens for one anywhere on the page (on the
+      // way down to the canvas, so the scene's own handlers hear the same event after it).
+      // SOUND STOPS WITH THE FRAMES: paused while the scene is out of view or its tab is hidden, and closed when the
+      // scene stops or is run again.
+      const more = {}
+      let hush = null
+      if (soundLib) {
+        const host = options.sound || {}
+        const mine = host.send ? null : (player = soundLib.createPlayer(host))
+        const sound = soundLib.createSound({
+          sound: mine || host,
+          resolve: at, ids: host.ids, ...(host.readBytes ? { read: (path) => host.readBytes(path) } : null),
+        })
+        let quiet = false
+        hush = () => {
+          const now = !inView || document.hidden
+          if (now === quiet) return
+          quiet = now
+          if (mine) quiet ? mine.pause() : mine.resume()
+          else (quiet ? host.pause : host.resume)?.call(host)
+        }
+        listen(document, 'visibilitychange', hush)
+        hush()
+        cleanup.push(() => {
+          sound.close()
+          mine?.close()
+          if (player === mine) player = null
+        })
+        for (const n of bothSpellings(SOUND_NAMES)) more[n] = sound[n] ?? sound[camel(n)] ?? soundLib[n] ?? soundLib[camel(n)]
+      }
+      // --- ON-SCREEN CONTROLS (dial, slider, keyboard, scope…): drawn on a canvas of their own over the scene's, and gone with the scene.
+      if (controlsLib) {
+        panel = controlsLib.controls(canvas, { fresh: true })
+        cleanup.push(() => panel.panel?.close())
+        for (const n of bothSpellings(CONTROL_NAMES)) if (!(n in more)) more[n] = panel[n] ?? panel[camel(n)] ?? controlsLib[n] ?? controlsLib[camel(n)]
       }
       let last = 0
       let counted = 0
@@ -1687,7 +1812,7 @@ export function runScene(container, options = {}) {
 
       let scene
       try {
-        scene = compile(source, name, !!options.stopStuckLoops)
+        scene = compile(source, name, !!options.stopStuckLoops, Object.keys(more))
       } catch (error) {
         // It would not compile: find the line before saying so.
         const where = error instanceof SyntaxError ? await syntaxLine(source) : { line: 0, past: false }
@@ -1703,7 +1828,7 @@ export function runScene(container, options = {}) {
       const given = { measure, __loop, ctx, canvas, THREE, addons, frame, vsync: frame, flush: frame, sleep, keys, mouse, pressed, released, touches, pinch, circle, rect, line, text, background, triangle, ellipse, polygon, star, picture, random, pick, degrees, Sprite, remove,
         loadImage, load_image: loadImage, loadText, load_text: loadText, loadJSON, load_json: loadJSON, saveText, save_text: saveText, saveJSON, save_json: saveJSON, openDatabase, open_database: openDatabase,
         loadFont, load_font: loadFont, save, load, use }
-      const begun = scene(...GIVEN.map((n) => given[n]), (set) => { setSize = set; resize() })
+      const begun = scene(...GIVEN.map((n) => given[n]), ...Object.values(more), (set) => { setSize = set; resize() })
       status('running')
       hooks = await begun
       if (!live()) return
@@ -1721,6 +1846,7 @@ export function runScene(container, options = {}) {
   start()
   return {
     get canvas() { return canvas },
+    get sound() { return player },
     stop() { run++; stopRun() },
     showFps(on) { wantFps = !!on; fitMeter() },
     restart(next) { if (next != null) source = next; start() },
