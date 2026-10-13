@@ -103,6 +103,7 @@ scene.stop()
 | `storage` | Where the files the scene writes are kept, for an app that has real files to give it. See [Storage](#storage) below. Without it the browser keeps them. |
 | `pictures` | The methods a loaded picture has (`await img.removeBackground()`), for an app that can change pictures. See [Picture methods](#picture-methods) below. Without it a picture has none. |
 | `sound` | Where a scene's sound is made, for an app that plays it somewhere else, or that must hand the page the sound engine. See [Sound](#sound) below. Without it the page plays. |
+| `midi` | The MIDI devices themselves, for an app whose browser has no Web MIDI (an iPad app). See [MIDI](#midi) below. Without it the browser's own is used, where it has one. `false` switches MIDI off. |
 | `sqlite` | The address of the folder SQLite is loaded from (it holds `sql-wasm.js` and `sql-wasm.wasm`), in place of the `sqlite` folder beside `pictures.js`. |
 | `savedAs` | The name the scene's saved values and files are kept under in the browser. Without it, the scene's address. |
 | `stopStuckLoops` | `true` stops a loop that holds the page for four seconds: the scene shows an error with the loop's line. A loop written without braces is not checked. Off unless asked for. |
@@ -172,6 +173,31 @@ runScene(box, { src: "game.js", sound: { wasm: bytes, worklet: "blob" } })
 `wasm` is `sound/synths_core.wasm` as a `Uint8Array` or an `ArrayBuffer`. `worklet: "blob"` loads the audio worklet from text that is already inside the library, so no second file is asked for. Anything else in `sound` is an option of the player (`latency`, `context`, `destination`, `fallback`): `destination` is a node to play into, for an app that records.
 
 The scenes on one page share one player (one sound card and one engine), made with the options of the first scene that makes sound. Each scene is still paused and stopped alone, and the player closes when the last of them stops.
+
+### MIDI
+
+A scene uses MIDI with `lead.playFromMidi()`, `function onMidiNote(note, velocity, channel) { }`, `sendMidiNote("C4")` and the rest ([Sound and music](sound.md#midi)). On a web page in Chrome, Edge or Firefox there is nothing to set up: the browser's Web MIDI is asked the first time a scene uses MIDI (the page must be on `https` or `localhost`, and a frame of another origin needs `allow="midi"`). Safari has no Web MIDI, and so no web view on an iPhone or an iPad has. There the scene still runs, and the console says once that there is none.
+
+An app that reaches MIDI devices some other way (an iPad app, with CoreMIDI) hands them to the scene with the `midi` option, a plain object of functions:
+
+```js
+runScene(box, {
+  src: "game.js",
+  midi: {
+    open() {},                          // optional, may give a promise: called once, when a scene first uses MIDI. Throw if there is none
+    inputs() { return ["Keystation 49"] },      // the names of the devices there now
+    outputs() { return ["Minilogue"] },
+    send(bytes, time, output) {},       // one whole message, due at `time` (milliseconds on performance.now()), to the output of that name (or the first)
+    receive(listener) {},               // keep it, and call listener(bytes, time, input) for what arrives
+    changed(listener) {},               // optional: call listener() when a device comes or goes
+    close() {},                         // optional
+  },
+})
+```
+
+That is the whole of it: reading the bytes, the keyboard that plays a synth, the knobs and the timing are done in the page, by synths.js. Its [docs/midi.md](https://github.com/johnwylie70/synths.js/blob/main/docs/midi.md) is the contract, with what a native app needs behind those functions. Like the player, the MIDI of a page is made with the options of the first scene that makes sound.
+
+An app that takes the sound commands itself (`sound.send`) finds the MIDI among them, as `{ op: "midi", do: … }`, and its own player carries them out. To hand back what was received, give `sound` an `onMidi(listener, scope)` function beside `send`, as a player has: `sound: { send: (batch) => player.send(batch), onMidi: (listener, scope) => player.onMidi(listener, scope) }`. For a player that is further away, keep the listener and call it with the lists of events as they arrive.
 
 Sound is kept silent by the browser until a click, a tap or a key press in the scene's own page. Inside an `<iframe>` that means inside the frame, unless the frame has `allow="autoplay"`.
 

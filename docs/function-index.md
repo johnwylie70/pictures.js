@@ -610,6 +610,34 @@ Explained in [Sound and music](sound.md).
 | `soundNames()`, `synthNames()`, `settingNames()` | Lists of the game sounds, the ready-made synths and a synth's settings | `sound_names`, `synth_names`, `setting_names` |
 | `playSong(path, options)`, `stopSong()` | A song from a `.mod` or `.xm` file beside the scene. Gives a song with `pause()`, `resume()`, `stop()` and `volume` | `play_song`, `stop_song` |
 
+### MIDI
+
+Fetched only by a scene that uses one of these names. Explained in [Sound and music](sound.md#midi).
+
+| Name | What it does | Python spelling |
+|---|---|---|
+| `function onMidiNote(note, velocity, channel) { }` | Yours to write: called when a key of a MIDI keyboard goes down (and with velocity 0 when it comes up, unless you write `onMidiNoteOff`) | `on_midi_note` |
+| `function onMidiNoteOff(note, channel) { }` | Yours to write: called when a key comes up | `on_midi_note_off` |
+| `function onMidiControl(number, value, channel) { }` | Yours to write: called when a knob, slider or pedal moves. `value` is from 0 to 1 | `on_midi_control` |
+| `function onMidi(message) { }` | Yours to write: called with everything that arrives, as `{ type, channel, note, velocity, control, value, … }` | `on_midi` |
+| `function onMidiDevices(devices) { }` | Yours to write: called when the devices are known or change, with `{ inputs, outputs, available }` | `on_midi_devices` |
+| `onMidiNote(fn)`, `onMidiNoteOff(fn)`, `onMidiControl(fn)`, `onMidi(fn)`, `onMidiDevices(fn)` | The same five, given a function to call instead | as above |
+| `lead.playFromMidi(options)` | A MIDI keyboard plays this synth. `{ channel }`; `false` stops | `play_from_midi` |
+| `lead.learn(setting, fn)` | The next knob that is moved turns this setting; `fn` is called with each new value | `learn` |
+| `lead.mapMidi(control, setting, fn, options)` | Knob `control` turns this setting. `{ min, max, channel }` | `map_midi` |
+| `lead.unmapMidi(setting)` | No knob turns it any more | `unmap_midi` |
+| `lead.sendToMidi(options)` | What this synth plays also goes out as MIDI. `{ channel, output }` | `send_to_midi` |
+| `sendMidiNote(note, velocity, options)` | A note out, let go after `length` (0.5 seconds unless you say). `{ length, channel, output, after, at, beat }` | `send_midi_note` |
+| `sendMidiNoteOff(note, options)` | Lets go of a note sent with `length: null` | `send_midi_note_off` |
+| `sendMidiControl(number, value, options)` | Turns a knob on the other device: value from 0 to 1 | `send_midi_control` |
+| `sendMidiBend(amount, options)`, `sendMidiProgram(number, options)` | Bends the pitch (-1 to 1), and chooses a sound by its number | `send_midi_bend`, `send_midi_program` |
+| `sendMidi(bytes, options)` | Any message, as its bytes | `send_midi` |
+| `sendMidiClock(on)` | Sends the beat, so another device keeps time with `setTempo` | `send_midi_clock` |
+| `midiDevices()` | `{ inputs, outputs, available }` as they are known now | `midi_devices` |
+| `useMidiInput(name)`, `useMidiOutput(name)` | Listen to one input alone, and send to one output | `use_midi_input`, `use_midi_output` |
+| `receiveMidi(message)` | Hands the scene a message as a keyboard would, for trying it with nothing plugged in | `receive_midi` |
+| `stopMidi()` | Stops everything MIDI is doing | `stop_midi` |
+
 ## Dials, sliders and a keyboard
 
 Loaded only by a scene that calls one of these names.

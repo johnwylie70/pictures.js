@@ -284,7 +284,7 @@ function draw() {
 }
 ```
 
-There are game sounds (`playSound("coin")`), notes and tunes (`playNote("C4")`, `playNotes("C4 E4 G4 - C5", 0.25)`), synths whose settings are plain properties (`lead.cutoff = 800`), arpeggios and recorded sounds; and dials, sliders, buttons, switches, a piano keyboard, a scope and a meter that lay themselves out over the scene. The sound is made by [synths.js](https://github.com/johnwylie70/synths.js), in the `sound` folder, and the controls by [dials.js](https://github.com/johnwylie70/dials.js), in the `dials` folder. Each is loaded only by a scene that uses it: a scene with no sound and no controls loads exactly what it always did. See [Sound and music](docs/sound.md) and [Dials, sliders and a keyboard](docs/controls.md).
+There are game sounds (`playSound("coin")`), notes and tunes (`playNote("C4")`, `playNotes("C4 E4 G4 - C5", 0.25)`), synths whose settings are plain properties (`lead.cutoff = 800`), arpeggios, recorded sounds and MIDI (`lead.playFromMidi()` and a keyboard plays the synth); and dials, sliders, buttons, switches, a piano keyboard, a scope and a meter that lay themselves out over the scene. The sound is made by [synths.js](https://github.com/johnwylie70/synths.js), in the `sound` folder, and the controls by [dials.js](https://github.com/johnwylie70/dials.js), in the `dials` folder. Each is loaded only by a scene that uses it: a scene with no sound and no controls loads exactly what it always did. See [Sound and music](docs/sound.md) and [Dials, sliders and a keyboard](docs/controls.md).
 
 ## Changing a picture
 
@@ -299,6 +299,7 @@ In [`examples/`](examples), each with a comment at the top saying what it shows.
 | `star_catcher.js` | A 2D game with sprites, a score, lives and sound effects |
 | `synth_panel.js` | A synth with dials, a scope, a meter and a piano keyboard to play it |
 | `tune.js`, `arpeggio.js` | Music: a melody, bass and drums with `playNotes`, and Commodore 64 chords with `startArp` |
+| `midi_keyboard.js`, `midi_lights.js` | MIDI: a synth played from a MIDI keyboard, with dials its knobs turn, and a picture drawn from the keys with `onMidiNote` |
 | `space_rocks.js` | Space Rocks: steer a ship and shoot the rocks, which break in two and wrap round the edges |
 | `bat_and_ball.js` | Bat and Ball: one player against the computer |
 | `brick_breaker.js` | Brick Breaker: a bat, a ball and a wall of bricks |

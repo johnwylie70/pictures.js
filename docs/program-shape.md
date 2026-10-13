@@ -244,6 +244,7 @@ Define any of these and they are called when the event happens:
 | `onTouchEnd(touch, cancelled)` | A finger comes up. |
 | `onWheel(amount)` | The wheel turns. Rolling down is positive. |
 | `onPinch(scale, change)` | Two fingers move together or apart. See [Zooming](#zooming-pinch-and-the-wheel). |
+| `onMidiNote(note, velocity, channel)` | A key of a MIDI keyboard goes down. Also `onMidiNoteOff`, `onMidiControl`, `onMidi` and `onMidiDevices`: see [MIDI](sound.md#midi). |
 
 A function may leave out the arguments it does not need: `onKeyDown(key)` and `onMouseDown(x, y)` are fine.
 

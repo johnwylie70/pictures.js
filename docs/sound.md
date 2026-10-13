@@ -190,6 +190,72 @@ Beats are counted from `setTempo(120)` (beats a minute; beat 0 is the moment you
 const size = 60 + 40 * (1 - beat() % 1)      // biggest on each beat
 ```
 
+## MIDI
+
+MIDI is how music keyboards, drum pads, boxes of knobs and synths talk to each other and to a computer. Plug a MIDI keyboard into your computer and one line makes it play a synth:
+
+```js
+const lead = makeSynth("keys")
+lead.playFromMidi()
+```
+
+It follows the notes, how hard you hit each key, the pitch wheel, the modulation wheel and the sustain pedal. The first time a scene uses MIDI the browser asks whether the page may use your MIDI devices: say yes. `lead.playFromMidi({ channel: 2 })` listens to one channel alone, and `lead.playFromMidi(false)` stops.
+
+MIDI works in Chrome, Edge and Firefox on a computer. Safari, iPhones and iPads have no MIDI for web pages. Where there is none your scene still runs: the console says so once, and everything else carries on. So write a scene that also works by hand, as the two examples do.
+
+### Your own functions
+
+A scene has functions with names that pictures.js looks for, such as `update`, `draw` and `onKeyDown`. MIDI has some too. Write one and it is called:
+
+```js
+function onMidiNote(note, velocity, channel) {
+  // a key went down
+}
+
+function onMidiNoteOff(note, channel) {
+  // a key came up
+}
+
+function onMidiControl(number, value, channel) {
+  // a knob, a slider or a pedal moved
+}
+```
+
+`note` is a number, where 60 is middle C, and `velocity` is how hard the key was hit, from 0 to 1. If you leave `onMidiNoteOff` out, a key coming up calls `onMidiNote` with velocity 0. `number` is which knob it was (every one has a number from 0 to 127; the sustain pedal is 64) and `value` goes from 0 to 1. `channel` is from 1 to 16.
+
+Two more: `onMidi(message)` is given everything that arrives, as `{ type, channel, note, velocity, control, value, bend, program, data, time, device }`, where `type` is `"noteOn"`, `"noteOff"`, `"control"`, `"bend"`, `"program"` and so on, `time` is when it happened on the clock `soundTime()` reads and `device` is the name of what sent it. `onMidiDevices(devices)` is called when the devices are known, and again when one is plugged in or pulled out, with `{ inputs, outputs, available }`: two lists of names, and `available` is `false` where there is no MIDI.
+
+[`examples/midi_lights.js`](../examples/midi_lights.js) throws a ball up the picture for every key. Each name can be called instead, with a function to keep: `onMidiNote((note, velocity) => { … })`. That is the way inside a function of your own, or to have two.
+
+### A knob turns a setting
+
+```js
+const cutoff = dial("cutoff", lead, "cutoff")
+
+lead.learn("cutoff", (value) => { cutoff.value = value })    // the next knob you move turns the cutoff
+lead.mapMidi(74, "resonance")                                // or say which knob, by its number
+```
+
+The knob goes through the setting's whole range, so nothing has to be worked out, and `lead.cutoff` reads back what the knob has set. The function is called with each new value, which is how a [dial](dials.md) on the screen turns with the knob. `{ min: 200, max: 4000 }` narrows the range, and `lead.unmapMidi("cutoff")` lets the knob go. [`examples/midi_keyboard.js`](../examples/midi_keyboard.js) is a synth played by a MIDI keyboard, with three dials its knobs can turn.
+
+### Sending
+
+A scene can play a synth on the desk, or anything else with a MIDI socket:
+
+```js
+sendMidiNote("C4")                                      // a note, let go half a second later
+sendMidiNote("C4", 0.8, { length: "quarter", channel: 1 })    // how hard, how long (seconds, or a note length), which channel
+sendMidiNote(["C4", "E4", "G4"], { beat: 4 })           // a chord, on beat 4
+sendMidiControl(74, 0.5)                                // turn knob 74 on the other device to half way
+sendMidi([0x90, 60, 100])                               // any message at all, as its bytes
+```
+
+Everything that is sent takes `{ after, at, beat }` like a sound ([When things start](#when-things-start)) and leaves at exactly that time. There are also `sendMidiNoteOff("C4")` (for a note sent with `length: null`, which is held), `sendMidiBend(0.5)` and `sendMidiProgram(5)`, which chooses a sound by its number. `lead.sendToMidi()` sends what a synth plays, tunes and all, out as MIDI too. `sendMidiClock()` sends the beat, so that another device's own sequencer keeps time with `setTempo`.
+
+### Which device
+
+`midiDevices()` gives `{ inputs, outputs, available }` at any time; the lists are empty until the browser has answered, which is why `onMidiDevices` is there. `useMidiInput("Keystation 49")` listens to that one alone (otherwise: all of them), and `useMidiOutput("Minilogue")` sends to that one (otherwise: the first). `receiveMidi({ type: "noteOn", note: 60, velocity: 0.8, channel: 1 })` hands your scene a message just as a keyboard would, for trying a scene with nothing plugged in. `stopMidi()` stops everything MIDI is doing; it stops by itself with the scene.
+
 ## Volume and stopping
 
 ```js
@@ -202,7 +268,7 @@ Sound stops by itself when the scene stops or is run again. Several scenes on on
 
 ## The Python spellings
 
-Every name has its Python spelling too, so a scene comes across from [Pyctures](from-python.md) with little more than its syntax changed: `play_sound`, `play_note`, `play_notes`, `make_synth`, `load_sample`, `stop_sound`, `set_volume`, `set_tempo`, `sound_time`. Settings too: `lead.vibrato_rate = 6`.
+Every name has its Python spelling too, so a scene comes across from [Pyctures](from-python.md) with little more than its syntax changed: `play_sound`, `play_note`, `play_notes`, `make_synth`, `load_sample`, `stop_sound`, `set_volume`, `set_tempo`, `sound_time`, `on_midi_note`, `on_midi_control`, `send_midi_note`, `midi_devices`, `lead.play_from_midi()`. Settings too: `lead.vibrato_rate = 6`.
 
 ## Mistakes
 
@@ -214,15 +280,15 @@ Line 7: A synth has no setting called "cutof". Did you mean "cutoff"?
 Line 2: "H4" is not a note. Write a note as a name like "C4", "F#3" or "Bb5", or as a number, where 60 is middle C
 ```
 
-Things that are not your mistake do not stop the scene. They are said once in the browser's console and the rest carries on: sound that is waiting for a click, or a sample whose file is missing.
+Things that are not your mistake do not stop the scene. They are said once in the browser's console and the rest carries on: sound that is waiting for a click, a sample whose file is missing, or a browser with no MIDI.
 
 ## How it is loaded
 
-The sound is made by [synths.js](https://github.com/johnwylie70/synths.js), which sits in the `sound` folder beside `pictures.js`. It is loaded only by a scene that uses one of the sound names: a scene with no sound loads nothing for it. Its engine runs on the browser's audio thread, away from your drawing, so sound does not slow a frame and a slow frame does not make the sound stutter. `pictures build` copies the folder for a scene that uses it.
+The sound is made by [synths.js](https://github.com/johnwylie70/synths.js), which sits in the `sound` folder beside `pictures.js`. It is loaded only by a scene that uses one of the sound names: a scene with no sound loads nothing for it. Its engine runs on the browser's audio thread, away from your drawing, so sound does not slow a frame and a slow frame does not make the sound stutter. `pictures build` copies the folder for a scene that uses it. MIDI is one more file in that folder, `synths-midi.js`, fetched the first time a scene uses a MIDI name or has a function such as `onMidiNote`; a scene with sound and no MIDI never asks for it, and the browser is asked for its MIDI devices only then.
 
 A page that is not served over `https` (or from `localhost`, as `pictures run` does) has no audio thread to use. The same engine then runs on the page's own thread, which sounds the same and may crackle when the page is busy; the console says so once.
 
-An app that runs scenes can take the sound commands and play them itself: see [Use it on your website](website.md#sound).
+An app that runs scenes can take the sound commands and play them itself, and can supply MIDI where the browser has none: see [Use it on your website](website.md#sound).
 
 ## Related
 
