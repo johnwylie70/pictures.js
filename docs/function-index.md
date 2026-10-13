@@ -725,7 +725,7 @@ Explained in [Dials, sliders and a keyboard](dials.md).
 | `pads(label, names, target)` | Pads to hit, which play a synth |
 | `pitchWheel(…)`, `modWheel(…)`, `wheel(…)` | A wheel that rolls back, and one that stays |
 | `steps(label, 16)` | A lane of steps to tap and draw across: `lane.value`, `lane.text` |
-| `gatePattern(label, target)`, `arpPattern(label, target)` | A gate's steps as bars, and an arpeggio as a grid of chord notes |
+| `tranceGate(label, target)`, `arpPattern(label, target)` | A trance gate's steps as bars, and an arpeggio as a grid of chord notes |
 | `drumSeq(label, drums, target)` | A drum sequencer that plays by itself, with play, tempo, swing and starter patterns |
 | `label(text)` | Words; made just before some controls, their heading |
 | `group(title, fn)` | Controls kept together on one titled plate |
