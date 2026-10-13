@@ -68,6 +68,9 @@
  *   showNotes, makeSheet    sheet music (see SHEET MUSIC): `const page = showNotes("C4 E4 G4 - C5:2", "quarter")` writes a tune out as
  *                           notes on a staff, `page.play()` plays it and lights each note as it sounds, `page.follow(song)` follows a
  *                           song, `page.playAlong("wait")` waits for a learner, and `makeSheet()` is written a note at a time
+ *   glow, trails, blur,     effects, done by the graphics card to everything the scene has drawn (see EFFECTS): `glow(1)` turns one
+ *   kaleidoscope, look …    on, `const tail = trails(1.5)` keeps it to change (`tail.zoom = 2`), `look("arcade")` is several at once, and
+ *                           `bass()`, `mids()`, `highs()`, `loudness()` and `pulse()` are the scene's music as numbers from 0 to 1
  *   Scene, scene, go,       a program in several scenes (see SCENES): `class Title extends Scene { draw() { … } }` is one, with the
  *   nextScene, restart,     functions below as its methods; `go("Game")`, `nextScene()` and `restart()` change scene, `length = 12`
  *   section, config         ends one by itself, `transition = "crossfade"` is how it arrives, and sceneTime, sceneProgress and
@@ -125,6 +128,9 @@ const DIAL_NAMES = ['actionButton', 'arpPattern', 'busy', 'button', 'checkbox', 
 /* NOTATION_NAMES:BEGIN */
 const NOTATION_NAMES = ['showNotes', 'makeSheet']
 /* NOTATION_NAMES:END */
+/* EFFECT_NAMES:BEGIN */
+const EFFECT_NAMES = ['aurora', 'bass', 'bassShake', 'beatFlash', 'bloom', 'blur', 'bokeh', 'brighten', 'bulge', 'cartoon', 'caustics', 'checkerFloor', 'clearEffects', 'clouds', 'colorBleed', 'colorCycle', 'colourBleed', 'colourCycle', 'contrast', 'copperBars', 'crosshatch', 'crt', 'dither', 'dots', 'droste', 'duotone', 'dust', 'edges', 'effectNames', 'effectsQuality', 'emboss', 'fire', 'fisheye', 'flow', 'fog', 'frosted', 'glassTiles', 'glitch', 'glow', 'godRays', 'gradientMap', 'grain', 'halftone', 'heatHaze', 'hexagons', 'highs', 'hue', 'interference', 'interlace', 'invert', 'kaleidoscope', 'led', 'letters', 'lightLeaks', 'lightRays', 'lightning', 'listenTo', 'look', 'lookNames', 'loudness', 'matrixRain', 'metaballs', 'mids', 'mirror', 'moire', 'motionBlur', 'nightVision', 'oil', 'paletteNames', 'pixelate', 'plasma', 'posterize', 'pulse', 'punch', 'rain', 'rainbowEdges', 'react', 'recordVideo', 'renderFrames', 'rgbSplit', 'ripple', 'rotozoom', 'saturate', 'saveVideo', 'scanlines', 'sepia', 'shader', 'shake', 'sharpen', 'sketch', 'smear', 'snow', 'softFocus', 'solarize', 'spectrumBars', 'spectrumRing', 'spinBlur', 'stainedGlass', 'starfield', 'streaks', 'stutter', 'swirl', 'thermal', 'threshold', 'tile', 'tiltShift', 'tint', 'trails', 'tunnel', 'twister', 'vignette', 'voronoi', 'warp', 'waveformRing', 'waves', 'wobble', 'zoomBlur']
+/* EFFECT_NAMES:END */
 /** The functions a scene may define, Python spelling beside the JavaScript one. */
 const HOOKS = {
   setup: ['setup'], update: ['update'], draw: ['draw'],
@@ -580,20 +586,20 @@ const midiHooksOf = (code) => [...new Set([...code.matchAll(MIDI_DEFINED)].map((
 export function sceneUses(source) {
   const code = codeOf(source)
   const notation = usesAny(code, NOTATION_NAMES)
-  return { three: uses3D(source), sound: notation || usesAny(code, SOUND_NAMES) || midiHooksOf(code).length > 0, dials: usesAny(code, DIAL_NAMES), scenes: usesScenes(code), notation }
+  return { three: uses3D(source), sound: notation || usesAny(code, SOUND_NAMES) || midiHooksOf(code).length > 0, dials: usesAny(code, DIAL_NAMES), scenes: usesScenes(code), notation, effects: usesAny(code, EFFECT_NAMES) }
 }
 
 /**
  * A sibling library, loaded the first time a scene uses it: the module in its folder beside this file.
  * A failure is not remembered, so the next scene tries again.
  */
-const SIBLINGS = { sound: 'sound/synths.js', dials: 'dials/dials.js', scenes: 'scenes/scenes.js', notation: 'notation/notation.js' }
+const SIBLINGS = { sound: 'sound/synths.js', dials: 'dials/dials.js', scenes: 'scenes/scenes.js', notation: 'notation/notation.js', effects: 'visualfx/visualfx.js' }
 const siblings = {}
 function loadSibling(which) {
   const address = new URL(SIBLINGS[which], BASE).href
   siblings[which] ??= import(address).catch((e) => {
     delete siblings[which]
-    throw new Error(`This scene uses ${which === 'sound' ? 'sound' : which === 'scenes' ? 'scenes' : which === 'notation' ? 'sheet music' : 'on-screen controls'}, and that part of pictures.js could not be loaded: ${address} (${e?.message ?? e})`)
+    throw new Error(`This scene uses ${which === 'sound' ? 'sound' : which === 'scenes' ? 'scenes' : which === 'notation' ? 'sheet music' : which === 'effects' ? 'effects' : 'on-screen controls'}, and that part of pictures.js could not be loaded: ${address} (${e?.message ?? e})`)
   })
   return siblings[which]
 }
@@ -842,6 +848,7 @@ export function runScene(container, options = {}) {
   let voice = null // the sound functions of the scene that is running, when it uses sound
   let stage = null // the director of the scenes of the file that is running, when it has scenes (see SCENES)
   let changing = null // its transitions
+  let fx = null // the effects, for a scene that uses them
   // A host that records the scene a frame at a time says so, and at what rate (see `stepped`).
   const asked = options.stepped ?? options.sound?.stepped
   const stepped = asked ? { fps: asked.fps > 0 ? asked.fps : 60, sampleRate: asked.sampleRate } : null
@@ -981,7 +988,8 @@ export function runScene(container, options = {}) {
       const wantsNotation = usesAny(code, NOTATION_NAMES)
       const wantsSound = wantsNotation || usesAny(code, SOUND_NAMES) || midiHooks.length > 0, wantsControls = usesAny(code, DIAL_NAMES)
       const wantsScenes = usesScenes(code)
-      const [{ THREE, addons }, soundLib, controlsLib, scenesLib, notationLib] = await Promise.all([is3D ? loadThree() : {}, wantsSound && loadSibling('sound'), wantsControls && loadSibling('dials'), wantsScenes && loadSibling('scenes'), wantsNotation && loadSibling('notation')])
+      const wantsEffects = usesAny(code, EFFECT_NAMES)
+      const [{ THREE, addons }, soundLib, controlsLib, scenesLib, notationLib, effectsLib] = await Promise.all([is3D ? loadThree() : {}, wantsSound && loadSibling('sound'), wantsControls && loadSibling('dials'), wantsScenes && loadSibling('scenes'), wantsNotation && loadSibling('notation'), wantsEffects && loadSibling('effects')])
       if (!live()) return
       // three.js loaders take the same table (one scene to a page when it is used).
       if (THREE && files) THREE.DefaultLoadingManager.setURLModifier((url) => files[url] || url)
@@ -1993,6 +2001,17 @@ export function runScene(container, options = {}) {
         })
         Object.assign(more, director.names)
       }
+      // --- EFFECTS (glow, trails, kaleidoscope…): done by the graphics card to what the scene drew, each frame after its
+      // draw, and shown on a canvas of their own over the scene's and under its controls. They listen to all the
+      // scene's sound unless it says what (listenTo). While one scene changes to the next, the old scene's picture
+      // (the transition's layer) is part of what they are given, so a transition is seen through the effects.
+      if (effectsLib) {
+        fx = effectsLib.effects(canvas, { fresh: true, manual: true, sound: sound ? () => sound.soundOutput() : null, under: () => changing?.running?.layer })
+        cleanup.push(() => { fx?.close(); fx = null })
+        for (const n of bothSpellings(EFFECT_NAMES)) if (!(n in more)) more[n] = fx[n] ?? fx[camel(n)]
+        // A film the scene makes of itself has the scene's own sound, when that is made a frame at a time (`stepped`).
+        for (const n of ['renderFrames', 'recordVideo']) { const film = fx[n]; if (more[n] === film) more[n] = more[snake(n)] = (o = {}) => film({ sound: () => voice?.player, ...o }) }
+      }
       let last = 0
       let counted = 0
       let countedSince = 0
@@ -2029,6 +2048,7 @@ export function runScene(container, options = {}) {
           call(hooks.update, dt)
           call(hooks.draw)
         }
+        if (fx) fx.frame(dt)
         const due = waiting
         waiting = []
         for (const resolve of due) resolve(dt)

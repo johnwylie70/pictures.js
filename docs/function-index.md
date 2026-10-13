@@ -17,6 +17,7 @@ Every name a pictures.js scene can use, by area, one line each. The link on each
 | Sound and music | yes | not yet |
 | Dials, sliders and a keyboard | yes | not yet |
 | Sheet music | yes | not yet |
+| Effects | yes | yes |
 | Image processing | Circuitry only | Circuitry only |
 
 This page is pictures.js's own index, in its own spellings. Pyctures has the same areas in Python: [the Pyctures function index](https://www.circuitry.dev/docs/pyctures/functions).
@@ -740,6 +741,117 @@ Explained in [Dials, sliders and a keyboard](dials.md).
 | `room()` | The rectangle no control is on |
 | `theme(colours)` | The colours |
 | `over(x, y)` | Is a control at this point? |
+
+## Effects
+
+Done by the graphics card to everything the scene has drawn. [Effects](effects.md) is how to use them and [every effect](effects-reference.md) has a picture of each with its settings.
+
+| Function | What it does | Python spelling |
+|---|---|---|
+| `kaleidoscope(8)` | One slice of the picture, folded round and round |  |
+| `mirror("left")` | One half of the picture shown on both sides, or one quarter in all four |  |
+| `pixelate(10)` | Big square pixels |  |
+| `waves(12)` | The picture ripples like a flag in the wind |  |
+| `ripple(8)` | Rings spreading from a point, as from a stone dropped in water |  |
+| `wobble(14)` | The picture wobbles like jelly, or something seen under water |  |
+| `swirl(180)` | The middle of the picture twisted round, like stirred paint |  |
+| `fisheye(0.5)` | A bulge, as through a round lens |  |
+| `tunnel(0.4)` | The picture becomes the walls of a tunnel you are flying down |  |
+| `tile(3)` | The picture repeated in rows and columns |  |
+| `droste(3)` | The picture inside itself, smaller each time, for ever |  |
+| `rotozoom(0.5)` | The picture tiled, turning and zooming: an old demo-scene favourite |  |
+| `hexagons(14)` | Six-sided pixels, like a honeycomb |  |
+| `glassTiles(40)` | Seen through a wall of glass blocks | `glass_tiles` |
+| `frosted(6)` | Seen through frosted glass |  |
+| `heatHaze(5)` | The shimmer of hot air rising | `heat_haze` |
+| `caustics(0.5)` | The net of bright lines that sunlight makes on the floor of a pool |  |
+| `shake(10)` | The whole picture shakes |  |
+| `punch(0.15)` | A zoom in towards a point |  |
+| `zoomBlur(0.25)` | Rushing towards a point | `zoom_blur` |
+| `spinBlur(8)` | Spinning round a point | `spin_blur` |
+| `motionBlur(24)` | Moving fast in one direction | `motion_blur` |
+| `tiltShift(8)` | A band in focus and the rest blurred, which makes a scene look like a tiny model | `tilt_shift` |
+| `lightRays(0.7)` | Rays of light streaming out from a point, through whatever is bright | `light_rays` |
+| `streaks(0.6)` | Long sideways flares from bright lights, as a film camera makes |  |
+| `softFocus(0.6)` | A soft, dreamy haze over the bright parts | `soft_focus` |
+| `blur(8)` | Out of focus |  |
+| `glow(0.8)` | Bright things shine and spread light around them |  |
+| `smear(3)` | What was drawn is carried away on a slow current, like wet paint |  |
+| `stutter(8)` | Only so many new pictures a second: the last one is held between them |  |
+| `trails(0.5)` | What was drawn stays and fades |  |
+| `rgbSplit(4)` | Red and blue pulled apart, like a cheap lens or a bad signal | `rgb_split` |
+| `hue(90)` | Every colour moved round the colour wheel |  |
+| `saturate(1.6)` | More colour, or less: at 0 the picture is grey |  |
+| `brighten(1.3)` | Brighter, or darker below 1 |  |
+| `contrast(1.4)` | Lights lighter and darks darker |  |
+| `invert()` | A negative: every colour swapped for its opposite |  |
+| `posterize(4)` | Only a few shades of each colour, like a poster |  |
+| `tint("gold")` | Seen through coloured glass |  |
+| `duotone("midnightblue", "gold")` | Two colours only: one for the dark parts and one for the light |  |
+| `colourCycle("rainbow")` | Brightness becomes a colour from a palette, and the colours move round | `colour_cycle` |
+| `gradientMap("sunset")` | Brightness becomes a colour from a palette, dark to light | `gradient_map` |
+| `thermal()` | A heat camera: cold is dark blue, hot is yellow and white |  |
+| `nightVision(1.6)` | Green, grainy and bright in the dark, like a night-vision scope | `night_vision` |
+| `sepia(1)` | The warm brown of an old photograph |  |
+| `threshold(0.5)` | Two colours and nothing between: dark or light |  |
+| `solarize(0.5)` | The bright parts turned to their opposite, as in an over-exposed photograph |  |
+| `colourBleed(10)` | Colours smeared sideways, as on old videotape | `colour_bleed` |
+| `rainbowEdges(2)` | Every edge in the picture drawn in rainbow colours | `rainbow_edges` |
+| `scanlines(0.5)` | Dark lines across the picture, as on an old screen |  |
+| `crt(0.18)` | An old television: curved glass, lines, and thin stripes of red, green and blue |  |
+| `glitch(0.5)` | A broken signal: blocks that jump sideways, a line that tears, a band of snow |  |
+| `letters(10)` | The picture made of marks, as an old terminal would show it |  |
+| `dither("gameboy")` | A few colours made to pass for many with a pattern of dots, as old computers did |  |
+| `interlace(0.6)` | Every other line dark, swapping each frame, like old video |  |
+| `led(8)` | A wall of round lamps |  |
+| `edges(2)` | Only the outlines, each in its own colour |  |
+| `dots(9)` | Printed in dots, big where the picture is bright, as a comic or a newspaper is |  |
+| `emboss(2)` | Pressed into grey metal: only the bumps and hollows show |  |
+| `sharpen(1)` | Crisper edges |  |
+| `sketch(3)` | A pencil drawing on paper |  |
+| `cartoon(4)` | Flat colours and black outlines |  |
+| `stainedGlass(40)` | Pieces of coloured glass with dark lead between them | `stained_glass` |
+| `crosshatch(6)` | Shaded with crossing pen lines: more lines where it is darker |  |
+| `oil(4)` | Smoothed into patches of colour, like oil paint |  |
+| `grain(0.18)` | The fine speckle of film |  |
+| `vignette(0.6)` | Dark corners, which draw the eye to the middle |  |
+| `dust(0.5)` | Specks and scratches, as on old film |  |
+| `lightLeaks(0.6)` | Warm light creeping in from the sides, as in an old camera | `light_leaks` |
+| `rain(0.6)` | Rain falling in front of the picture |  |
+| `snow(0.8)` | Snow falling in front of the picture |  |
+| `bokeh(0.5)` | Soft discs of coloured light drifting by: lamps out of focus |  |
+| `fog(0.6)` | Drifting mist, thicker towards the bottom |  |
+| `lightning(1)` | A flash, now and then |  |
+| `plasma("sunset")` | Slow rolling colour |  |
+| `starfield(0.5)` | Flying through stars |  |
+| `metaballs("neon")` | Blobs that melt into each other when they meet: a lava lamp |  |
+| `flow("ocean")` | Colour that folds and curls like ink in water |  |
+| `warp("neon")` | A chequered tunnel rushing past |  |
+| `voronoi("candy")` | Soft coloured cells that slowly shift |  |
+| `moire("white")` | Two sets of rings crossing, making patterns neither has alone |  |
+| `interference("ocean")` | Waves from four moving points, crossing |  |
+| `aurora("aurora")` | The northern lights over a night sky |  |
+| `fire("fire")` | Flames rising from the bottom of the picture |  |
+| `clouds("#3a8fdc")` | A sky with drifting clouds |  |
+| `matrixRain("#3dff7a")` | Green marks falling in columns | `matrix_rain` |
+| `copperBars("rainbow")` | Shining bars sliding up and down: a demo-scene classic | `copper_bars` |
+| `checkerFloor("#ff2ad4")` | A chequered floor rushing towards you under a glowing horizon | `checker_floor` |
+| `twister("candy")` | A twisting four-sided bar, another demo-scene classic |  |
+| `spectrumBars("rainbow")` | The music as bars: low notes at the left, high at the right | `spectrum_bars` |
+| `spectrumRing("rainbow")` | The music as bars round a ring | `spectrum_ring` |
+| `waveformRing("white")` | The sound's own wave, bent into a ring | `waveform_ring` |
+| `beatFlash(0.5)` | A flash of colour on each beat | `beat_flash` |
+| `bassShake(14)` | The picture shakes with the bass | `bass_shake` |
+| `look(name)` | Several effects at once: `dream`, `arcade`, `vhs`, `neon`, `comic`, `underwater`, `oldfilm`, `disco`, `gameboy`, `c64`, `noir`, `comicbook`, `storm`, `winter`, `cinema`, `terminal` | |
+| `shader(program, settings)` | An effect of your own, from a program for the graphics card | |
+| `clearEffects()` | Take every effect off | `clear_effects` |
+| `effect.off()`, `effect.on()`, `effect.remove()`, `effect.amount` | Every effect has these; its settings are properties | |
+| `bass()`, `mids()`, `highs()`, `loudness()`, `pulse()` | The scene's music as numbers from 0 to 1; `pulse()` jumps on each beat | |
+| `react(effect, setting, band, { from, to })` | Tie a setting to one of those | |
+| `listenTo(source)` | What the music is taken from, when not all the scene's sound | `listen_to` |
+| `effectsQuality(value)` | How many pixels the effects work on: 1, 0.5, or `"auto"` | `effects_quality` |
+| `effectNames()`, `lookNames()`, `paletteNames()` | What there is | `effect_names`, `look_names`, `palette_names` |
+| `recordVideo({ seconds, fps })`, `saveVideo(film, name)`, `renderFrames(…)` | A film of the page, every frame exactly 1/fps apart | `record_video`, `save_video`, `render_frames` |
 
 ## Other names
 
