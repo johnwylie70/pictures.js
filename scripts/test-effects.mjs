@@ -25,6 +25,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const from = process.env.PLAYWRIGHT || 'playwright'
 const playwright = await import(from.startsWith('/') ? pathToFileURL(join(from, 'index.mjs')).href : from)
 
+const SONG = resolve(ROOT, '..', 'synths.js', 'examples', 'songs', 'night_drive.json')
 const TYPES = { '.js': 'text/javascript', '.html': 'text/html', '.wasm': 'application/wasm', '.json': 'application/json' }
 const asked = []
 const server = createServer(async (request, reply) => {
@@ -32,6 +33,10 @@ const server = createServer(async (request, reply) => {
   if (path === '/test.html') {
     reply.writeHead(200, { 'content-type': 'text/html' })
     return reply.end('<!doctype html><body style="margin:0;background:#fff"><div id="s" style="position:relative;width:300px;height:200px"></div>')
+  }
+  // A real tracker song for the music tests: synths.js's own example, from the repository beside this one.
+  if (path === '/song.json') {
+    try { reply.writeHead(200, { 'content-type': 'application/json' }); return reply.end(await readFile(SONG)) } catch (e) { reply.writeHead(404); return reply.end() }
   }
   asked.push(path.slice(1))
   try {
@@ -52,7 +57,7 @@ const near = (a, b, by = 6) => a && a.length >= b.length && b.every((v, i) => Ma
 
 async function play(page, source, { until = 'window.result !== undefined', wait = 5000 } = {}) {
   asked.length = 0
-  await page.evaluate(async (source) => {
+  const begin = () => page.evaluate(async (source) => {
     const { runScene } = await import('/pictures.js')
     window.scene?.stop()
     document.getElementById('s').replaceChildren()
@@ -60,6 +65,14 @@ async function play(page, source, { until = 'window.result !== undefined', wait 
     window.error = null
     window.scene = runScene(document.getElementById('s'), { source, name: 'scene.js', keyboard: true, onError: (message, line) => { window.error = { error: message, line } } })
   }, source)
+  // Headless Chromium now and then replaces the page's world just after a scene that played a song is stopped
+  // (the reason is not known: nothing navigates and nothing is said). The scene is then started again, once.
+  try { await begin() } catch (e) {
+    if (!/context was destroyed/i.test(String(e.message))) throw e
+    await page.waitForLoadState('load').catch(() => {})
+    await page.waitForTimeout(300)
+    await begin()
+  }
   await page.waitForFunction(`window.error || (${until})`, null, { timeout: wait }).catch(() => {})
   return page.evaluate(() => window.error || window.result || {})
 }
@@ -98,6 +111,7 @@ for (const name of ['chromium', 'webkit']) {
   const page = await browser.newPage({ viewport: { width: 500, height: 400 }, deviceScaleFactor: 1 })
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
+  if (process.env.WATCH) { page.on('framenavigated', (f) => console.log('     navigated to', f.url())); page.on('crash', () => console.log('     the page crashed')); page.on('console', (m) => { if (/error|warn/.test(m.type())) console.log('     says:', m.text().slice(0, 200)) }) }
   await page.goto(`${at}/test.html`)
 
   let got = await play(page, `function draw() { background("navy"); circle(100, 100, 30, "gold") }\nawait frame(); await frame()\nwindow.result = { canvases: document.querySelectorAll("#s canvas").length }`)
@@ -169,9 +183,44 @@ setTimeout(async () => { for (let i = 0; i < 3; i++) await frame(); const t = fx
   // Safari's engine does not say which line of the scene a mistake found inside a library came from (see lineOf).
   say(/kaleidoscope has no setting called "segmnts"/.test(got.error || '') && (got.line === 3 || name === 'webkit'), name, 'a mistake with an effect is said in plain words, with its line where the browser gives it', got)
 
+  // A SONG as the music: a tracker song playing, heard through all the scene's sound and through one of its channels.
+  if (existsSync(SONG)) {
+    const music = async (listen) => {
+      await play(page, `const fxs = ${PIPE}
+const song = playSong("/song.json")
+glow(1)
+${listen}
+window.most = { bass: 0, mids: 0, highs: 0, loudness: 0, pulses: 0 }
+let was = 0
+function draw() {
+  background("black")
+  circle(150, 100, 20 + 60 * bass(), "gold")
+  const m = window.most
+  m.bass = Math.max(m.bass, bass()); m.mids = Math.max(m.mids, mids()); m.highs = Math.max(m.highs, highs()); m.loudness = Math.max(m.loudness, loudness())
+  if (pulse() > 0.9 && was < 0.5) m.pulses++
+  was = pulse()
+}`, { until: 'window.scene.sound && window.scene.sound.state !== "loading"', wait: 20000 })
+      await page.mouse.click(150, 100)
+      await page.waitForFunction('window.error || (window.most && window.most.loudness > 0.5)', null, { timeout: 15000 }).catch(() => {})
+      await page.waitForTimeout(2500)
+      return page.evaluate(() => window.error || { ...window.most, state: window.scene.sound.state })
+    }
+    got = await music('')
+    say(!got.error && got.loudness > 0.5 && got.bass > 0.3 && got.mids > 0.3 && got.pulses >= 2, name, 'a song that is playing moves the music\'s numbers with nothing said: the bass, the middle, how loud, and a pulse on its beats', got)
+    got = await music('listenTo(soundOutput())')
+    say(!got.error && got.loudness > 0.5 && got.bass > 0.3 && got.pulses >= 2, name, 'and the same through listenTo(soundOutput())', got)
+    // One channel of the song: the first that is heard in its first seconds.
+    got = await music(`window.picked = -1
+const pick = setInterval(() => { for (let n = 0; n < 8; n++) { let l = 0; try { l = song.channel(n).level() } catch (e) { continue }; if ((Array.isArray(l) ? Math.max(...l) : l) > 0.02) { window.picked = n; listenTo(song.channel(n)); clearInterval(pick); return } } }, 50)`)
+    got.picked = await page.evaluate(() => window.picked)
+    say(!got.error && got.picked >= 0 && got.loudness > 0.5, name, 'and through one channel of the song, listenTo(song.channel(n))', got)
+  } else console.log(`     ${name}: no song beside this repository (${SONG}), so the song as music is not tested`)
+
   // Every program on the Effects page of the docs is run as it is written.
   const programs = [...(await readFile(join(ROOT, 'docs', 'effects.md'), 'utf8')).matchAll(/```js\n([\s\S]*?)```/g)].map((m) => m[1])
   const broken = []
+  // (A page that has played a song is left behind first: now and then Chromium reloads it under the next scene.)
+  await page.goto(`${at}/test.html`)
   for (const program of programs) {
     got = await play(page, program, { until: 'window.scene && document.querySelector("#s canvas[data-effects-layer]")?.style.display === "block"', wait: 6000 })
     const shown = await page.evaluate(() => document.querySelector('#s canvas[data-effects-layer]')?.style.display)
