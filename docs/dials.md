@@ -512,7 +512,7 @@ custom("level", { width: 80, height: 110, source: lead, animate: true,    // sou
 
 ## The MIDI button
 
-`keyboard(lead, { midi: true })` puts a MIDI button on the keyboard's strip. A tap makes the synth listen to MIDI (the browser asks first) and opens a panel for the device and the channel: every device or one, every channel or 1 to 16. It is the synth's own `lead.midiInput()`, so a choice made in code shows in the panel.
+`keyboard(lead, { midi: true })` puts a MIDI button on the keyboard's strip. A tap makes the synth listen to MIDI (the browser asks first) and opens a panel for the device and the channel: every device or one, every channel or 1 to 16. It is the synth's own `lead.midiInput()`, so a choice made in code shows in the panel. With another target, or none, the keyboard listens to the browser's MIDI itself and keeps its own choice, so the button needs nothing.
 
 ![The keyboard's MIDI panel open, with two devices and sixteen channels](images/midi-panel.png)
 
