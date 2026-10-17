@@ -508,7 +508,7 @@ custom("level", { width: 80, height: 110, source: lead, animate: true,    // sou
   draw(c) { c.circle(c.width / 2, c.height / 2, 14 + 26 * c.level, c.accent) } })
 ```
 
-`onDown`, `onMove` and `onUp` get the finger's place in the control's own points (`p.x`, `p.y`), `onFrame(c, now)` is called every frame (to keep time), `onKey(event, c)` hears keys, and `animate: true` draws every frame. `pad.set(value)` is a change by hand (it calls `onChange`); `pad.value = x` and `pad.redraw()` only draw. The painter has `c.rect`, `c.frame`, `c.circle`, `c.ring`, `c.line`, `c.lines`, `c.polygon`, `c.text` and `c.clear`, and `c.g`, the canvas's own 2D context. The whole of it, with a chord pad, a level meter and a scope, is in [dials.js](https://github.com/johnwylie70/dials.js#your-own-controls).
+`height` is the drawing area (a label adds its own line above it, so `c.height` is the height you asked for). `onDown`, `onMove` and `onUp` get the finger's place in the control's own points (`p.x`, `p.y`), `onFrame(c, now)` is called every frame (to keep time), `onKey(event, c)` hears keys, and `animate: true` draws every frame. `pad.set(value)` is a change by hand (it calls `onChange`); `pad.value = x` and `pad.redraw()` only draw. The painter has `c.rect`, `c.frame`, `c.circle`, `c.ring`, `c.line`, `c.lines`, `c.polygon`, `c.text` and `c.clear`, and `c.g`, the canvas's own 2D context. The whole of it, with a chord pad, a level meter and a scope, is in [dials.js](https://github.com/johnwylie70/dials.js#your-own-controls).
 
 ## The MIDI button
 
