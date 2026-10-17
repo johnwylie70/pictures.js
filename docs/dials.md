@@ -46,8 +46,9 @@ Each one takes a last `{ … }` of options. All of them take `x` and `y` (to pla
 | `select(label, choices, start)` | One of a list, stepped through with the arrows at its sides. `wave.value` is the choice and `wave.index` its place. `select(label, target, "setting")` takes the choices from the target, and keeps up when they change (a list of MIDI devices). `{ style: "rotary" }` makes it a rotary |
 | `keyboard(target, { octave, octaves })` | A piano keyboard along the bottom. `piano.notes` is what is held now (60 is middle C). Options: `midi: true` (a MIDI button: [see below](#the-midi-button)), `keys: false` (no computer keys), `hints: false` (no letters on the keys), `animate: false` (the keys jump to a new octave, not slide), `height`, `onNoteOn(note, velocity)`, `onNoteOff(note)`. It never shows so many octaves that a key is too narrow to play |
 | `scope(source)` | A line of numbers, live: a synth, a function that returns a list, or a list. With no source, `graph.push(value)` adds a point, to draw any value over time |
+| `spectrum(source)` | The frequencies in a sound as bars, low to high from the left, spaced as notes are: a synth, a function that returns a list of numbers, or a list. Options: `bands` (32), `peaks: false`, `rate` (48000): see [Spectrum](#spectrum) |
 | `meter(source)` | A level from 0 to 1 as a bar of lights: a synth, a function, or `level.value = 0.7` |
-| `custom(label, { draw, onDown, onMove, onUp, source })` | A control of your own: see [Your own controls](#your-own-controls) |
+| `custom(label, { draw, onDown, onMove, onUp, source, design })` | A control of your own: see [Your own controls](#your-own-controls) |
 | `label(text)` | Words. Made just before some controls, it is their heading, on the plate they share |
 | `group`, `row`, `column`, `grid`, `page`, `spacer`, `wrap` | What goes with what: see [Laying it out](#laying-it-out) |
 | `number`, `textBox`, `readout`, `checkbox`, `choose`, `radio`, `dropdown`, `xyPad`, `colourPicker`, `progress`, `light`, `busy`, `rangeSlider`, `fader`, `joystick`, `dpad`, `actionButton`, `envelope`, `stepGrid`, `pads`, `pitchWheel`, `modWheel`, `steps`, `tranceGate`, `arpPattern`, `drumSeq` | More controls, for any program, for games and for music: see [More controls](#more-controls) |
@@ -484,6 +485,19 @@ function draw() {
 }
 ```
 
+## Spectrum
+
+`spectrum(lead)` shows what is in a sound as bars, the low notes at the left. The bands are spaced the way notes are, from 30 Hz up, and a bar is as tall as the sound is loud in its band, from -90 dB to 0 dB (a full-strength sine reaches the top). A tick above each bar holds its highest point for a moment and falls.
+
+```js
+const lead = makeSynth("lead")
+spectrum(lead, { bands: 48 })
+```
+
+![A spectrum of a chord on a saw wave, a scope of the wave and a level meter above a keyboard with three keys held](images/spectrum.png)
+
+It takes what `scope` takes: a synth, a function that returns a list of numbers, or a list. `bands` is how many bars (32), `peaks: false` leaves out the ticks and `rate` (48000) is the sound card's rate. The page works the bars out, so in Python a synth in the page costs Python nothing.
+
 ## Your own controls
 
 `custom` makes a control of your own: you draw it, and say what a finger does to it. It sits in the layout like any other control, has a `value` and an `onChange`, and can listen to a synth.
@@ -509,6 +523,22 @@ custom("level", { width: 80, height: 110, source: lead, animate: true,    // sou
 ```
 
 `height` is the drawing area (a label adds its own line above it, so `c.height` is the height you asked for). `onDown`, `onMove` and `onUp` get the finger's place in the control's own points (`p.x`, `p.y`), `onFrame(c, now)` is called every frame (to keep time), `onKey(event, c)` hears keys, and `animate: true` draws every frame. `pad.set(value)` is a change by hand (it calls `onChange`); `pad.value = x` and `pad.redraw()` only draw. The painter has `c.rect`, `c.frame`, `c.circle`, `c.ring`, `c.line`, `c.lines`, `c.polygon`, `c.text` and `c.clear`, and `c.g`, the canvas's own 2D context. The whole of it, with a chord pad, a level meter and a scope, is in [dials.js](https://github.com/johnwylie70/dials.js#your-own-controls).
+
+`design: [w, h]` is the size you draw for: `c.width` and `c.height` are then that, and what you draw is scaled to fit the control's box and centred in it, so a finger comes back in points of the design. `c.spectrum` is what a source is playing as `bands` (32) bands, low to high, each from 0 to 1 for -90 dB to 0 dB, worked out in the page from the whole wave; `c.samples`, `c.level` and `c.input` are there too. A control is drawn on a layer of its own, the size of its area, so nothing it draws can be seen outside it: a shape far bigger than the box is cut at its edge. And it can be an analyser of your own:
+
+![A level meter in dB, a spectrum of 48 bars with peak ticks and the wave, drawn by custom(), above a keyboard with three keys held](images/custom-analyser.png)
+
+```js
+const BANDS = 48, bars = new Array(BANDS).fill(0)
+custom({ width: 640, height: 300, design: [640, 300], bands: BANDS, source: lead, animate: true,
+  draw(c) {
+    c.clear(c.theme.well)
+    for (let i = 0; i < BANDS; i++) {
+      bars[i] = Math.max(c.spectrum[i] || 0, bars[i] - 0.02)        // rise at once, fall away
+      c.rect(100 + i * 520 / BANDS + 1, 24 + 180 * (1 - bars[i]), 520 / BANDS - 2, 180 * bars[i], c.accent)
+    }
+  } })
+```
 
 ## The MIDI button
 
