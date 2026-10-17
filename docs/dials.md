@@ -44,9 +44,10 @@ Each one takes a last `{ … }` of options. All of them take `x` and `y` (to pla
 | `toggle(label, on)` | A switch. `mute.on` is true or false. `toggle(label, target, "setting")` ties it to a setting |
 | `rotary(label, choices, start)` | A knob that clicks between a few choices, with a notch for each and their names round it where there is room. Drag to turn it from notch to notch, or tap a name. `mode.value` is the choice and `mode.index` its place. `rotary(label, target, "setting")` takes the choices from the target: `rotary("reverb", lead, "reverbType")`. The choice is written under the knob only where no names are round it; `showValue: true` or `false` says otherwise |
 | `select(label, choices, start)` | One of a list, stepped through with the arrows at its sides. `wave.value` is the choice and `wave.index` its place. `select(label, target, "setting")` takes the choices from the target, and keeps up when they change (a list of MIDI devices). `{ style: "rotary" }` makes it a rotary |
-| `keyboard(target, { octave, octaves })` | A piano keyboard along the bottom. `piano.notes` is what is held now (60 is middle C). Options: `keys: false` (no computer keys), `hints: false` (no letters on the keys), `animate: false` (the keys jump to a new octave, not slide), `height`, `onNoteOn(note, velocity)`, `onNoteOff(note)`. It never shows so many octaves that a key is too narrow to play |
+| `keyboard(target, { octave, octaves })` | A piano keyboard along the bottom. `piano.notes` is what is held now (60 is middle C). Options: `midi: true` (a MIDI button: [see below](#the-midi-button)), `keys: false` (no computer keys), `hints: false` (no letters on the keys), `animate: false` (the keys jump to a new octave, not slide), `height`, `onNoteOn(note, velocity)`, `onNoteOff(note)`. It never shows so many octaves that a key is too narrow to play |
 | `scope(source)` | A line of numbers, live: a synth, a function that returns a list, or a list. With no source, `graph.push(value)` adds a point, to draw any value over time |
 | `meter(source)` | A level from 0 to 1 as a bar of lights: a synth, a function, or `level.value = 0.7` |
+| `custom(label, { draw, onDown, onMove, onUp, source })` | A control of your own: see [Your own controls](#your-own-controls) |
 | `label(text)` | Words. Made just before some controls, it is their heading, on the plate they share |
 | `group`, `row`, `column`, `grid`, `page`, `spacer`, `wrap` | What goes with what: see [Laying it out](#laying-it-out) |
 | `number`, `textBox`, `readout`, `checkbox`, `choose`, `radio`, `dropdown`, `xyPad`, `colourPicker`, `progress`, `light`, `busy`, `rangeSlider`, `fader`, `joystick`, `dpad`, `actionButton`, `envelope`, `stepGrid`, `pads`, `pitchWheel`, `modWheel`, `steps`, `tranceGate`, `arpPattern`, `drumSeq` | More controls, for any program, for games and for music: see [More controls](#more-controls) |
@@ -482,6 +483,40 @@ function draw() {
   circle(width / 2, height / 2, ball.radius, "gold")
 }
 ```
+
+## Your own controls
+
+`custom` makes a control of your own: you draw it, and say what a finger does to it. It sits in the layout like any other control, has a `value` and an `onChange`, and can listen to a synth.
+
+![A ribbon of eight keys with one held, a ring that is as large as the sound is loud, a tempo dial and a row of steps, all made with custom()](images/custom-instrument.png)
+
+```js
+const lead = makeSynth("lead")
+
+const ribbon = custom("ribbon", {
+  width: 340, height: 110, value: -1,
+  draw(c) {                                     // c.width, c.height, c.value, c.accent, c.theme; shapes in the control's own points
+    c.rect(0, 0, c.width, c.height, c.theme.well, 10)
+    for (let i = 0; i < 8; i++) c.rect(i * c.width / 8 + 3, 4, c.width / 8 - 6, c.height - 8, i === c.value ? c.accent : c.theme.knob, 6)
+  },
+  onDown(p, c) { ribbon.set(Math.floor(p.x / c.width * 8)); lead.play(57 + ribbon.value, 0.4) },
+  onMove(p, c) { if (Math.floor(p.x / c.width * 8) !== ribbon.value) ribbon.set(Math.floor(p.x / c.width * 8)) },
+  onUp() { ribbon.value = -1 },
+})
+
+custom("level", { width: 80, height: 110, source: lead, animate: true,    // source: lead gives draw() c.level and c.samples
+  draw(c) { c.circle(c.width / 2, c.height / 2, 14 + 26 * c.level, c.accent) } })
+```
+
+`onDown`, `onMove` and `onUp` get the finger's place in the control's own points (`p.x`, `p.y`), `onFrame(c, now)` is called every frame (to keep time), `onKey(event, c)` hears keys, and `animate: true` draws every frame. `pad.set(value)` is a change by hand (it calls `onChange`); `pad.value = x` and `pad.redraw()` only draw. The painter has `c.rect`, `c.frame`, `c.circle`, `c.ring`, `c.line`, `c.lines`, `c.polygon`, `c.text` and `c.clear`, and `c.g`, the canvas's own 2D context. The whole of it, with a chord pad, a level meter and a scope, is in [dials.js](https://github.com/johnwylie70/dials.js#your-own-controls).
+
+## The MIDI button
+
+`keyboard(lead, { midi: true })` puts a MIDI button on the keyboard's strip. A tap makes the synth listen to MIDI (the browser asks first) and opens a panel for the device and the channel: every device or one, every channel or 1 to 16. It is the synth's own `lead.midiInput()`, so a choice made in code shows in the panel.
+
+![The keyboard's MIDI panel open, with two devices and sixteen channels](images/midi-panel.png)
+
+Where the browser has no MIDI, the panel says so and the keyboard goes on working from the screen and the computer's keys.
 
 ## How they are drawn
 

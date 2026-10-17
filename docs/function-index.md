@@ -707,7 +707,7 @@ Explained in [Dials, sliders and a keyboard](dials.md).
 | `toggle(label, on)` | A switch: `mute.on` |
 | `rotary(label, choices, start)` | A knob that clicks between a few choices: `mode.value` |
 | `select(label, choices, start)` | One of a list: `wave.value` |
-| `keyboard(target, options)` | A piano keyboard that plays a synth |
+| `keyboard(target, options)` | A piano keyboard that plays a synth. `midi: true` adds a MIDI button: a panel for the device and channel |
 | `scope(source)` | A live line: the wave a synth is making, or any list of numbers |
 | `meter(source)` | A level as a bar of lights |
 | `number(label, min, max, start)`, `stepper(…)` | A number box with − and +, which can be typed: `lives.value` |
@@ -732,6 +732,7 @@ Explained in [Dials, sliders and a keyboard](dials.md).
 | `steps(label, 16)` | A lane of steps to tap and draw across: `lane.value`, `lane.text` |
 | `tranceGate(label, target)`, `arpPattern(label, target)` | A trance gate's steps as bars, and an arpeggio as a grid of chord notes |
 | `drumSeq(label, drums, target)` | A drum sequencer that plays by itself, with play, tempo, swing and starter patterns |
+| `custom(label, options)` | A control of your own: `draw(c)` paints it, `onDown`, `onMove` and `onUp` hear a finger, `source` lets it listen to a synth |
 | `label(text)` | Words; made just before some controls, their heading |
 | `group(title, fn)` | Controls kept together on one titled plate |
 | `row()` | Starts a new line; `row(fn)` keeps what it makes in a line |
