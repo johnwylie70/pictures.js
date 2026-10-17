@@ -398,6 +398,12 @@ pictures.js comes from [Circuitry Studio](https://www.circuitry.dev), where a Ja
 
 Its page, where you can edit a scene and run it: [circuitry.dev/pictures](https://www.circuitry.dev/pictures).
 
+## Megademo
+
+[![Megademo: a cube and a glass shape turning over a chessboard floor, all drawn by the scene](docs/images/megademo.jpg)](https://github.com/johnwylie70/megademo)
+
+[Megademo](https://github.com/johnwylie70/megademo) is a demo in the style of the ones made on the C64 and Amiga, made in Circuitry Studio. A whole demo, in one file of pictures.js: the scene draws everything, a tracker song plays, and effects run on the graphics card. It is one file, `main.js`, and it is worth reading for how it is done. [Watch it on YouTube](https://youtu.be/6fKMwrOik5k).
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE). pictures.js includes three.js (MIT); see [three/LICENSE](three/LICENSE). It includes sql.js, SQLite built for the browser (MIT); see [sqlite/LICENSE](sqlite/LICENSE).
