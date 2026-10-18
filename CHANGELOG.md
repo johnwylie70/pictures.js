@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0 (2026-10-18)
+
 Everything written for 0.1.0 still runs, and a scene that uses nothing below loads exactly what it did.
 
 ### New

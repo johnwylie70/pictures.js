@@ -5,3 +5,6 @@ site/
 .DS_Store
 .playwright-mcp/
 .circuitry/
+
+# Owner notes, kept locally
+PUBLISHING.md
