@@ -19,9 +19,12 @@ pictures.js is designed for projects made in [Circuitry Studio](https://www.circ
 - [Saved values](saved-values.md): keep a best score for next time
 - [Files and databases](files-and-databases.md): write a file and read it back, and keep rows in a SQLite database
 - [Sound and music](sound.md): game sounds, notes and tunes, synths, recorded sounds, MIDI and your voice
+- [Make it talk: say()](say.md): `say("Hello")` and nothing else to set up, a mouth that talks with `mouth()`; a better voice from an app
 - [Dials, sliders and a keyboard](dials.md): controls on the scene, for a number or for a synth
 - [Sheet music](sheet-music.md): a tune or a song written as notes on a staff, lit as it plays, and played along with
 - [Effects](effects.md): glow, trails, a kaleidoscope, old screens, rain, backdrops that need no drawing, and the music as numbers; [every effect](effects-reference.md) with its picture
+- [Kinetic text](kinetic-text.md): words that slam, wave, bounce, type, glitch, wipe, pop, scroll, count and get highlighted, for the first seconds of a video, in a wide frame or a tall one
+- [Code-along](code-along.md): code typed on one side, syntax coloured, and what it really draws on the other, stage by stage, for a lesson in a video
 - [Bringing a Pyctures scene across](from-python.md)
 - [Use it on your website](website.md)
 

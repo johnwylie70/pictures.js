@@ -15,9 +15,12 @@ Every name a pictures.js scene can use, by area, one line each. The link on each
 | Files | yes | yes |
 | Databases (SQLite) | yes | yes |
 | Sound and music | yes | not yet |
+| Talking: `say()`, `speaker()`, `mouth()` | yes | yes |
 | Dials, sliders and a keyboard | yes | not yet |
 | Sheet music | yes | not yet |
 | Effects | yes | yes |
+| Kinetic text, for videos | yes | yes |
+| Code-along, for videos | yes | yes |
 | Image processing | Circuitry only | Circuitry only |
 
 This page is pictures.js's own index, in its own spellings. Pyctures has the same areas in Python: [the Pyctures function index](https://www.circuitry.dev/docs/pyctures/functions).
@@ -692,6 +695,21 @@ Fetched only by a scene that uses one of these names. Explained in [Sound and mu
 | `receiveMidi(message)` | Hands the scene a message as a keyboard would, for trying it with nothing plugged in | `receive_midi` |
 | `stopMidi()` | Stops everything MIDI is doing | `stop_midi` |
 
+## Talking
+
+Fetched only by a scene that uses it. Explained in [Make it talk: say()](say.md).
+
+| Name | What it does | Python spelling |
+|---|---|---|
+| `say(text, { voice, lang, speaker })` | The computer says it. Gives back how many seconds the line takes (measured when an app has a recording of it, else 2.5 words a second, never under 0.8). Free, on the device, no account; heard live but not recorded into a video | `say(text, voice=None, lang="en")` |
+| `speaking(speaker)` | `true` while a line is being said (with a speaker, while that speaker's line is) | `speaking(speaker=None)` |
+| `speaker({ voice, pitch, rate, lang, name, like, fallback })` | A character for a conversation: a voice of its own (a voice's name, `system:Samantha`-style provider ids, `like: { gender, age, pitch, rate }`, `fallback: [...]`, or `"robot"`, `"high"`, `"deep"`, `"squeaky"`, `"slow"`, `"fast"`), `pitch` 0 to 2 and `rate` 0.1 to 4 (1 is normal). `bob.say(text)`, `bob.sayAt(text)`, `bob.level()`, `bob.shape()` and `bob.speaking()`. Lines from speakers wait their turn, so they never overlap | `speaker(voice=None, pitch=1, rate=1, lang="en", name=None, like=None, fallback=None)` |
+| `sayAt(text, { voice, lang, speaker })` | Like `say`, giving `{ start, duration, end }` in seconds from now: when the line begins (after the lines before it), how long, and when it ends | `say_at(text, voice=None, lang="en", speaker=None)` |
+| `voices()` | The voices on offer, English first: `[{ name, lang, default, source }]`. Empty until the device has loaded its voices | `voices()` |
+| `voiceShape(speaker)` | The mouth now (a speaker's own, when given): `{ width, height, viseme }`; `width` is 0 (round, "oo") to 1 (spread, "ee"), `height` is the level, `viseme` is `"closed"`, `"oo"`, `"oh"`, `"ah"`, `"mid"` or `"ee"`. From the audio for a recording, from the words' vowels for the free voice | `voice_shape(speaker=None)` |
+| `voiceLevel(speaker)` | How loud the voice is right now (a speaker's own, when given), 0 (quiet) to 1 (loud), smoothed. A recorded line: the real loudness of its audio at that moment. The free voice: made up from the words, not true lip-sync | `voice_level(speaker=None)` |
+| `mouth(x, y, { size, style, color, speaker })` | Draws a mouth with its middle at `x, y`: a line when quiet, opening with the voice. `style` is `"oval"` (the default), `"smile"` or `"robot"`; `size` is its width (a sixth of the smaller side of the scene if left out); `color` is black if left out; `speaker` makes it open only while that speaker's line plays. Gives back the level it drew | `mouth(x, y, size=None, style="oval", color="black", speaker=None)` |
+
 ## Dials, sliders and a keyboard
 
 Loaded only by a scene that calls one of these names.
@@ -894,3 +912,37 @@ Explained in [Sheet music](sheet-music.md).
 - [2D functions](2d-functions.md): every 2D function, with pictures and examples
 - [3D functions](3d-functions.md): every 3D function
 - [How a program is shaped](program-shape.md): how a scene is put together
+
+## Kinetic text
+
+Moving words for videos, each drawn into the scene at the time you give it. [Kinetic text](kinetic-text.md) explains them, with every option.
+
+| Name | What it does |
+|---|---|
+| `wordSlam(text, options)` | Words land one at a time, hard, with a shake |
+| `letterWave(text, options)` | Letters appear and ride a wave |
+| `letterBounce(text, options)` | Letters drop in and bounce |
+| `typewriterText(text, options)` | Typed out letter by letter, with a cursor |
+| `glitchText(text, options)` | Split into red and blue, with slices that jump |
+| `maskReveal(text, options)` | A wipe uncovers the text |
+| `scalePop(text, options)` | The `*starred*` words swell and settle |
+| `tickerText(text, options)` | One line scrolling along a strip |
+| `countUp("12,000+", options)` | A number counting up |
+| `highlightSweep(text, options)` | A highlighter sweeps under the `*starred*` words |
+| `kineticText(kind, text, options)` | Any of the above by a short name: `"slam"`, `"wave"`, `"bounce"`, `"type"`, `"glitch"`, `"reveal"`, `"pop"`, `"ticker"`, `"count"`, `"highlight"` |
+| `kineticEffects()` | The short names `kineticText` takes, as a list |
+| `kineticTime()` | The scene's seconds; `kineticTime(5)` sets them |
+| `kineticSafe()` | The safe area in pixels: `{ left, top, right, bottom, width, height }` |
+| `houseStyle` | The palette, fonts, sizes and three voices every video shares |
+| `seededRandom(seed)` | A random function that gives the same numbers for the same seed |
+
+## Code-along
+
+Code typed on one side and what it really draws on the other, for a lesson in a video. [Code-along](code-along.md) explains it, with every option.
+
+| Name | What it does |
+|---|---|
+| `codeAlong({ stages, start, duration, layout, ... })` | Code typed stage by stage, syntax coloured, with the changed lines lit, beside the preview of each stage running; gives back `{ progress, stage, phase, typed, warnings }` |
+| `codeAlongStageAt(stages, t, options)` | Which stage is being typed `t` seconds in, and how many characters are typed, with no drawing |
+| `codeAlongBegin(options)`, `codeAlongEnd()` | The same, with the scene drawing the preview itself between the two |
+

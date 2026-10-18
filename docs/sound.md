@@ -639,4 +639,5 @@ The sound button and the card a demo asks with are a small part of their own, `m
 ## Related
 
 - [Dials, sliders and a keyboard](dials.md): controls on the scene, tied to a synth
+- [Make it talk: say()](say.md): the computer's own voice, and a better one from an app
 - [Function index](function-index.md#sound-and-music)

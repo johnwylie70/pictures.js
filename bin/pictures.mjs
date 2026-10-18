@@ -109,7 +109,9 @@ if (command === 'run') {
   // Sound, on-screen controls, scenes, sheet music and effects go with a scene that uses them, by the same test the scene is run with.
   const { sceneUses } = await import(pathToFileURL(join(HOME, 'pictures.js')).href)
   const uses = sceneUses(code)
-  for (const [part, folder] of [['sound', 'sound'], ['dials', 'dials'], ['scenes', 'scenes'], ['notation', 'notation'], ['effects', 'visualfx'], ['manners', 'manners']]) if (uses[part]) await cp(join(HOME, folder), join(out, 'pictures', folder), { recursive: true })
+  for (const [part, folder] of [['sound', 'sound'], ['dials', 'dials'], ['scenes', 'scenes'], ['notation', 'notation'], ['effects', 'visualfx'], ['manners', 'manners'], ['kinetic', 'kinetic'], ['codealong', 'codealong'], ['voice', 'voice']]) if (uses[part]) await cp(join(HOME, folder), join(out, 'pictures', folder), { recursive: true })
+  // The code-along takes its look from the moving text, so that goes with it.
+  if (uses.codealong && !uses.kinetic) await cp(join(HOME, 'kinetic'), join(out, 'pictures', 'kinetic'), { recursive: true })
   await writeFile(join(out, 'index.html'), page(scene, 'pictures/pictures.js', false))
   console.log(`Built ${out} (open index.html from a web server, or put the folder on any static host)`)
 } else {

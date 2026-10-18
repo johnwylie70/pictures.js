@@ -134,6 +134,13 @@ const EFFECT_NAMES = ['aurora', 'bass', 'bassShake', 'beatFlash', 'bloom', 'blur
 /* EFFECT_NAMES:END */
 /** The sound button and a demo's card: manners/manners.js, for a scene that names one of these. */
 const MANNERS_NAMES = ['soundButton', 'askAboutSound', 'soundIsOn']
+/** Moving text for videos: kinetic/kinetic.js, for a scene that names one of these. */
+const KINETIC_NAMES = ['wordSlam', 'letterWave', 'letterBounce', 'typewriterText', 'glitchText', 'maskReveal', 'scalePop', 'tickerText', 'countUp', 'highlightSweep', 'kineticText', 'kineticTime', 'kineticSafe', 'kineticEffects', 'houseStyle', 'seededRandom']
+/** say(): voice/say.js, for a scene that calls it. It asks a voice host (`options.voice`, else `window.pictureHost.voice`) and never generates. */
+const VOICE_NAMES = ['say', 'sayAt', 'voices', 'speaker', 'speaking', 'voiceLevel', 'voiceShape', 'mouth']
+/** The code-along scene: codealong/codealong.js, for a scene that names one of these. It uses the house style of kinetic/kinetic.js, which is loaded with it. */
+const CODEALONG_NAMES = ['codeAlong', 'codeAlongStageAt', 'codeAlongBegin', 'codeAlongEnd']
+const voiceHost = (options) => options.voice ?? globalThis.pictureHost?.voice
 /** The functions a scene may define, Python spelling beside the JavaScript one. */
 const HOOKS = {
   setup: ['setup'], update: ['update'], draw: ['draw'],
@@ -592,20 +599,20 @@ const midiHooksOf = (code) => [...new Set([...code.matchAll(MIDI_DEFINED)].map((
 export function sceneUses(source) {
   const code = codeOf(source)
   const notation = usesAny(code, NOTATION_NAMES)
-  return { three: uses3D(source), sound: notation || usesAny(code, SOUND_NAMES) || midiHooksOf(code).length > 0, dials: usesAny(code, DIAL_NAMES), scenes: usesScenes(code), notation, effects: usesAny(code, EFFECT_NAMES), manners: usesAny(code, MANNERS_NAMES) }
+  return { three: uses3D(source), sound: notation || usesAny(code, SOUND_NAMES) || midiHooksOf(code).length > 0, dials: usesAny(code, DIAL_NAMES), scenes: usesScenes(code), notation, effects: usesAny(code, EFFECT_NAMES), manners: usesAny(code, MANNERS_NAMES), kinetic: usesAny(code, KINETIC_NAMES), codealong: usesAny(code, CODEALONG_NAMES), voice: usesAny(code, VOICE_NAMES) }
 }
 
 /**
  * A sibling library, loaded the first time a scene uses it: the module in its folder beside this file.
  * A failure is not remembered, so the next scene tries again.
  */
-const SIBLINGS = { sound: 'sound/synths.js', dials: 'dials/dials.js', scenes: 'scenes/scenes.js', notation: 'notation/notation.js', effects: 'visualfx/visualfx.js', manners: 'manners/manners.js' }
+const SIBLINGS = { sound: 'sound/synths.js', dials: 'dials/dials.js', scenes: 'scenes/scenes.js', notation: 'notation/notation.js', effects: 'visualfx/visualfx.js', manners: 'manners/manners.js', kinetic: 'kinetic/kinetic.js', codealong: 'codealong/codealong.js', voice: 'voice/say.js' }
 const siblings = {}
 function loadSibling(which) {
   const address = new URL(SIBLINGS[which], BASE).href
   siblings[which] ??= import(address).catch((e) => {
     delete siblings[which]
-    throw new Error(`This scene uses ${which === 'sound' ? 'sound' : which === 'scenes' ? 'scenes' : which === 'notation' ? 'sheet music' : which === 'effects' ? 'effects' : which === 'manners' ? 'the sound button' : 'on-screen controls'}, and that part of pictures.js could not be loaded: ${address} (${e?.message ?? e})`)
+    throw new Error(`This scene uses ${which === 'sound' ? 'sound' : which === 'scenes' ? 'scenes' : which === 'notation' ? 'sheet music' : which === 'effects' ? 'effects' : which === 'manners' ? 'the sound button' : which === 'kinetic' ? 'moving text' : which === 'codealong' ? 'the code-along' : which === 'voice' ? 'say()' : 'on-screen controls'}, and that part of pictures.js could not be loaded: ${address} (${e?.message ?? e})`)
   })
   return siblings[which]
 }
@@ -853,6 +860,8 @@ export function runScene(container, options = {}) {
   const asked = options.stepped ?? options.sound?.stepped
   const stepped = asked ? { fps: asked.fps > 0 ? asked.fps : 60, sampleRate: asked.sampleRate } : null
   let manners = null // its sound button (manners/manners.js)
+  let kinetic = null // its moving text (kinetic/kinetic.js)
+  let codealong = null // its code-along scene (codealong/codealong.js)
   let stopRun = () => {}
   // Resolved when the run that is going has finished its top level and its setup(), or has failed or been stopped.
   let settled = () => {}
@@ -987,10 +996,12 @@ export function runScene(container, options = {}) {
       const midiHooks = midiHooksOf(code)
       // (Sheet music is played and followed by the sound's clock, so a scene that shows some has the sound too.)
       const wantsNotation = usesAny(code, NOTATION_NAMES)
-      const wantsSound = wantsNotation || usesAny(code, SOUND_NAMES) || midiHooks.length > 0, wantsControls = usesAny(code, DIAL_NAMES)
+      const wantsVoice = usesAny(code, VOICE_NAMES)
+      // (A line's generated audio plays through the sound; the draft voice is the browser's own, so with no host and no recording it needs none.)
+      const wantsSound = wantsNotation || usesAny(code, SOUND_NAMES) || midiHooks.length > 0 || (wantsVoice && (!!voiceHost(options) || !!(options.stepped ?? options.sound?.stepped))), wantsControls = usesAny(code, DIAL_NAMES)
       const wantsScenes = usesScenes(code)
       const wantsEffects = usesAny(code, EFFECT_NAMES)
-      const [{ THREE, addons }, soundLib, controlsLib, scenesLib, notationLib, effectsLib, mannersLib] = await Promise.all([is3D ? loadThree() : {}, wantsSound && loadSibling('sound'), wantsControls && loadSibling('dials'), wantsScenes && loadSibling('scenes'), wantsNotation && loadSibling('notation'), wantsEffects && loadSibling('effects'), usesAny(code, MANNERS_NAMES) && loadSibling('manners')])
+      const [{ THREE, addons }, soundLib, controlsLib, scenesLib, notationLib, effectsLib, mannersLib, kineticLib, voiceLib, codealongLib, previewVoiceLib] = await Promise.all([is3D ? loadThree() : {}, wantsSound && loadSibling('sound'), wantsControls && loadSibling('dials'), wantsScenes && loadSibling('scenes'), wantsNotation && loadSibling('notation'), wantsEffects && loadSibling('effects'), usesAny(code, MANNERS_NAMES) && loadSibling('manners'), (usesAny(code, KINETIC_NAMES) || usesAny(code, CODEALONG_NAMES)) && loadSibling('kinetic'), wantsVoice && loadSibling('voice'), usesAny(code, CODEALONG_NAMES) && loadSibling('codealong'), usesAny(code, CODEALONG_NAMES) && !wantsVoice && /\b(?:say|mouth)\s*\(/.test(source) && loadSibling('voice')])
       if (!live()) return
       // three.js loaders take the same table (one scene to a page when it is used).
       if (THREE && files) THREE.DefaultLoadingManager.setURLModifier((url) => files[url] || url)
@@ -1958,6 +1969,12 @@ export function runScene(container, options = {}) {
         })
         for (const n of bothSpellings(SOUND_NAMES)) more[n] = sound[n] ?? sound[camel(n)] ?? soundLib[n] ?? soundLib[camel(n)]
       }
+      // --- say() (voice/say.js): asks the voice host, else speaks in the draft voice; a generated line plays through the sound.
+      if (voiceLib) {
+        const talk = voiceLib.createSay({ host: () => voiceHost(options), sound: () => sound, recorded: !!stepped, code: source, live, ctx: () => ctx, size: () => [width, height] })
+        cleanup.push(() => talk.close())
+        for (const n of bothSpellings(VOICE_NAMES)) more[n] = talk.names[n] ?? talk.names[camel(n)]
+      }
       // --- ON-SCREEN CONTROLS (dial, slider, keyboard, scope…): drawn on a canvas of their own over the scene's, and gone with the scene.
       if (controlsLib) {
         panel = controlsLib.dials(canvas, { fresh: true })
@@ -2016,6 +2033,27 @@ export function runScene(container, options = {}) {
         // A film the scene makes of itself has the scene's own sound, when that is made a frame at a time (`stepped`).
         for (const n of ['renderFrames', 'recordVideo']) { const film = fx[n]; if (more[n] === film) more[n] = more[snake(n)] = (o = {}) => film({ sound: () => voice?.player, ...o }) }
       }
+      // --- MOVING TEXT (kinetic/kinetic.js): drawn on the scene's canvas, with a clock of its own that this moves on each frame.
+      if (kineticLib) {
+        kinetic = kineticLib.keep({ ctx, size: () => [width, height] })
+        cleanup.push(() => { kinetic.close(); kinetic = null })
+        for (const n of bothSpellings(KINETIC_NAMES)) if (!(n in more)) more[n] = kinetic.names[n] ?? kinetic.names[camel(n)]
+      }
+      // --- THE CODE-ALONG (codealong/codealong.js): code typed beside what it draws. Each stage's code is run as a small scene of its own
+      // (the scene's names, its own width and height, a chance that is seeded), drawn inside a pane of this canvas. It keeps time by the kinetic clock.
+      if (codealongLib && kinetic) {
+        codealong = codealongLib.keep({
+          ctx, kit: kineticLib, voice: previewVoiceLib, size: () => [width, height], time: () => kinetic.names.kineticTime(),
+          stage: (stageCode, w, h, seed, chance, extras = {}) => {
+            const own = { ...given, ...more, ...extras, random: chance.random, pick: chance.pick }
+            const names = [...new Set([...GIVEN, ...Object.keys(more), ...Object.keys(extras)])].concat(['width', 'height', 'pixelRatio', 'pixel_ratio'])
+            const run = new Function(...names, `return (() => {\n${stageCode}\n;return { setup: typeof setup === 'function' ? setup : undefined, update: typeof update === 'function' ? update : undefined, draw: typeof draw === 'function' ? draw : undefined }\n})()\n//# sourceURL=code-along-stage.js`)
+            return run(...names.slice(0, -4).map((n) => own[n]), w, h, ratio, ratio)
+          },
+        })
+        cleanup.push(() => { codealong.close(); codealong = null })
+        for (const n of bothSpellings(CODEALONG_NAMES)) if (!(n in more)) more[n] = codealong.names[n] ?? codealong.names[camel(n)]
+      }
       // --- THE SOUND BUTTON (manners/manners.js). `answering`: its card is up, and the scene waits.
       let answering = false, behind = false
       if (mannersLib) {
@@ -2066,6 +2104,7 @@ export function runScene(container, options = {}) {
           call(hooks.update, dt)
           call(hooks.draw)
         }
+        kinetic?.advance(stepped ? 1 / stepped.fps : dt)
         if (fx) fx.frame(dt)
         const due = waiting
         waiting = []
